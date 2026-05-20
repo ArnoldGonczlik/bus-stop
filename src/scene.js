@@ -111,10 +111,10 @@ export function createScene(scene) {
     }
   }
   
-  // Additional scattered trees on the sides
+  // Additional scattered trees on the sides (kept clear of road z: -2 to -10)
   const sidePositions = [
-    [-15, 0, -15], [-18, 0, -10], [-20, 0, -5],
-    [15, 0, -15], [18, 0, -10], [20, 0, -5]
+    [-15, 0, -14], [-19, 0, -14], [-22, 0, -14],
+    [15, 0, -14], [19, 0, -14], [22, 0, -14]
   ];
   
   sidePositions.forEach(pos => {

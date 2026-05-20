@@ -19,9 +19,12 @@ const DOOR_TRIGGER_SIZE = 1.5;
 // State
 let gameStarted = false;
 let gameWon = false;
+let gameDead = false;
 let busArrived = false;
 let busAnimating = false;
 let busCurrentX = BUS_START_X;
+let timerStart = 0;
+let elapsedTime = 0;
 
 // Movement state
 const moveState = {
@@ -38,7 +41,7 @@ scene.background = new THREE.Color(0x87ceeb);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(PLAYER_START_X, PLAYER_HEIGHT, PLAYER_START_Z);
-camera.rotation.y = Math.PI; // Face north toward road and forest
+camera.rotation.y = Math.PI; // Face +Z toward road
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -52,6 +55,7 @@ const controls = new PointerLockControls(camera, document.body);
 // UI elements
 const overlay = document.getElementById('overlay');
 const winScreen = document.getElementById('win-screen');
+const deathScreen = document.getElementById('death-screen');
 
 // Create scene elements
 const { ground, roadBounds } = createScene(scene);
@@ -61,7 +65,53 @@ const bus = createBus();
 bus.position.set(BUS_START_X, 0, -6);
 scene.add(bus);
 
-// Door trigger zone
+// Bus bounding box in local space (approximate full body footprint)
+const BUS_LOCAL_MIN_X = -5.0;
+const BUS_LOCAL_MAX_X = 6.6;
+const BUS_Z_CENTER = -6;
+const BUS_HALF_WIDTH_Z = 1.5; // half-depth of bus body
+
+function getBusWorldBox() {
+  return {
+    minX: busCurrentX + BUS_LOCAL_MIN_X,
+    maxX: busCurrentX + BUS_LOCAL_MAX_X,
+    minZ: BUS_Z_CENTER - BUS_HALF_WIDTH_Z,
+    maxZ: BUS_Z_CENTER + BUS_HALF_WIDTH_Z
+  };
+}
+
+function playerIntersectsBus(px, pz, r = 0.35) {
+  const b = getBusWorldBox();
+  return px + r > b.minX && px - r < b.maxX &&
+         pz + r > b.minZ && pz - r < b.maxZ;
+}
+
+function resetGame() {
+  busArrived = false;
+  busAnimating = false;
+  busCurrentX = BUS_START_X;
+  bus.position.x = BUS_START_X;
+  camera.position.set(PLAYER_START_X, PLAYER_HEIGHT, PLAYER_START_Z);
+  // Zero both pitch and yaw — controls owns these via its internal euler
+  camera.rotation.set(0, Math.PI, 0); // Face +Z toward road
+  // Show start overlay so player can click to re-lock pointer
+  overlay.classList.remove('hidden');
+  // Bus arrival will be triggered again once player clicks and locks pointer
+}
+
+function triggerDeath() {
+  gameDead = true;
+  gameStarted = false;
+  controls.unlock();
+  deathScreen.classList.add('visible');
+  setTimeout(() => {
+    deathScreen.classList.remove('visible');
+    setTimeout(() => {
+      gameDead = false;
+      resetGame();
+    }, 650);
+  }, 2000);
+}
 const doorTriggerBox = new THREE.Box3(
   new THREE.Vector3(DOOR_TRIGGER_X - DOOR_TRIGGER_SIZE, 0, DOOR_TRIGGER_Z - DOOR_TRIGGER_SIZE),
   new THREE.Vector3(DOOR_TRIGGER_X + DOOR_TRIGGER_SIZE, 3, DOOR_TRIGGER_Z + DOOR_TRIGGER_SIZE)
@@ -75,15 +125,18 @@ overlay.addEventListener('click', () => {
 controls.addEventListener('lock', () => {
   overlay.classList.add('hidden');
   gameStarted = true;
-  
-  // Start bus arrival after delay
-  setTimeout(() => {
-    busAnimating = true;
-  }, BUS_ARRIVAL_DELAY);
+  timerStart = performance.now();
+
+  // Only start bus if it hasn't been dispatched yet this round
+  if (!busAnimating && !busArrived) {
+    setTimeout(() => {
+      busAnimating = true;
+    }, BUS_ARRIVAL_DELAY);
+  }
 });
 
 controls.addEventListener('unlock', () => {
-  if (!gameWon) {
+  if (!gameWon && !gameDead) {
     overlay.classList.remove('hidden');
     gameStarted = false;
   }
@@ -164,8 +217,13 @@ function animate() {
       const newPosition = camera.position.clone().add(velocity);
       
       // Simple boundary constraints
-      if (newPosition.x > -25 && newPosition.x < 25 &&
-          newPosition.z > -20 && newPosition.z < 10) {
+      const inBounds = newPosition.x > -25 && newPosition.x < 25 &&
+                       newPosition.z > -20 && newPosition.z < 10;
+
+      // Bus solid collision: block if new position is inside bus body
+      const hitsBus = playerIntersectsBus(newPosition.x, newPosition.z);
+
+      if (inBounds && !hitsBus) {
         camera.position.add(velocity);
       }
     }
@@ -181,6 +239,12 @@ function animate() {
       }
       
       bus.position.x = busCurrentX;
+
+      // Trigger death screen if moving bus hits player
+      if (playerIntersectsBus(camera.position.x, camera.position.z)) {
+        triggerDeath();
+        return;
+      }
     }
     
     // Check door trigger
@@ -192,8 +256,10 @@ function animate() {
       
       if (doorTriggerBox.intersectsBox(playerBox)) {
         // Win condition
+        elapsedTime = ((performance.now() - timerStart) / 1000).toFixed(2);
         gameWon = true;
         controls.unlock();
+        document.getElementById('win-time').textContent = `Time: ${elapsedTime}s`;
         winScreen.classList.add('visible');
       }
     }
