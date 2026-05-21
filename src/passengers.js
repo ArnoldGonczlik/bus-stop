@@ -1,8 +1,11 @@
 import * as THREE from 'three';
 
+// Door is on the player's side of the bus (z ~ -7.5).
+// Queue lines up away from the bus: decreasing z (more negative = further from road).
 const DOOR_TARGET = { x: 3.5, z: -7.5 };
 const PASSENGER_RADIUS = 0.38;
-const BOARD_TIME = 1.5; // seconds to board once at the door
+const BOARD_TIME = 1.2; // seconds to board once at the door
+const QUEUE_SPACING = 0.85; // distance between queue slots
 
 const SKIN_COLORS = [0xffd5b0, 0xc68642, 0x8d5524, 0xf1c27d, 0xffe0bd];
 const HAT_COLORS  = [0xe63946, 0x457b9d, 0x2a9d8f, 0xe9c46a, 0xf4a261, 0x6a0572, 0x1d3557];
@@ -86,6 +89,7 @@ export function createPassengers(scene, count = 4) {
       rushing: false,
       boarded: false,
       boardingTimer: 0,
+      queueIndex: -1, // assigned when rushing starts
       idleTarget,
       idleTimer: 1.5 + Math.random() * 2.5, // seconds until next wander target
     });
@@ -104,6 +108,7 @@ export function resetPassengers(passengers) {
     p.rushing = false;
     p.boarded = false;
     p.boardingTimer = 0;
+    p.queueIndex = -1;
     p.idleTarget = randomIdleTarget(p.startX, p.startZ);
     p.idleTimer = 1.5 + Math.random() * 2.5;
     p.mesh.position.set(p.x, 0, p.z);
@@ -114,6 +119,33 @@ export function resetPassengers(passengers) {
 export function updatePassengers(passengers, delta, playerPos) {
   const DOOR_X = DOOR_TARGET.x;
   const DOOR_Z = DOOR_TARGET.z;
+
+  // Assign queue indices to rushing passengers that don't have one yet.
+  const usedSlots = new Set(
+    passengers
+      .filter(p => !p.boarded && p.rushing && p.queueIndex >= 0)
+      .map(p => p.queueIndex)
+  );
+  for (const p of passengers) {
+    if (!p.boarded && p.rushing && p.queueIndex < 0) {
+      let slot = 0;
+      while (usedSlots.has(slot)) slot++;
+      p.queueIndex = slot;
+      usedSlots.add(slot);
+    }
+  }
+
+  // If slot-0 just finished boarding this frame, shift everyone forward once.
+  // Use a flag so the shift only fires once per boarding event.
+  const frontPassenger = passengers.find(p => p.boarded && p.queueIndex === 0);
+  if (frontPassenger) {
+    frontPassenger.queueIndex = -2; // mark as already processed (won't trigger again)
+    for (const other of passengers) {
+      if (!other.boarded && other.rushing && other.queueIndex > 0) {
+        other.queueIndex--;
+      }
+    }
+  }
 
   // Collect all agent positions for collision (passengers + player)
   const agents = passengers
@@ -127,14 +159,13 @@ export function updatePassengers(passengers, delta, playerPos) {
     if (p.boarded) continue;
 
     if (!p.rushing) {
-      // Idle wander: count down timer, then pick new target
+      // Idle wander
       p.idleTimer -= delta;
       if (p.idleTimer <= 0) {
         p.idleTarget = randomIdleTarget(p.startX, p.startZ);
         p.idleTimer = 1.5 + Math.random() * 3.0;
       }
 
-      // Drift toward idle target
       const idx = p.idleTarget.x - p.x;
       const idz = p.idleTarget.z - p.z;
       const idist = Math.sqrt(idx * idx + idz * idz);
@@ -145,41 +176,40 @@ export function updatePassengers(passengers, delta, playerPos) {
       continue;
     }
 
-    // Rushing — move toward door
-    const dx = DOOR_X - p.x;
-    const dz = DOOR_Z - p.z;
+    // Compute this passenger's queue slot target position.
+    // Slot 0 = at door, slots 1+ line up behind toward the sidewalk (decreasing z).
+    const slotTargetX = DOOR_X;
+    const slotTargetZ = DOOR_Z - p.queueIndex * QUEUE_SPACING;
+
+    const dx = slotTargetX - p.x;
+    const dz = slotTargetZ - p.z;
     const dist = Math.sqrt(dx * dx + dz * dz);
 
-    if (dist < 0.5) {
-      // At the door — count boarding time, but only if door isn't busy with another passenger
-      const doorBusy = passengers.some(other => other !== p && !other.boarded && other.boardingTimer > 0);
-      if (!doorBusy) {
-        p.boardingTimer += delta;
-        if (p.boardingTimer >= BOARD_TIME) {
-          p.boarded = true;
-          p.mesh.visible = false;
-        }
+    if (p.queueIndex === 0 && dist < 0.5) {
+      // At the door — board
+      p.boardingTimer += delta;
+      if (p.boardingTimer >= BOARD_TIME) {
+        p.boarded = true;
+        p.mesh.visible = false;
       }
-      // Stand still while waiting/boarding
       continue;
     }
 
-    // Reset boarding timer if pushed away from door
+    if (dist < 0.18) continue; // already at slot
+
     p.boardingTimer = 0;
 
     const nx = dx / dist;
     const nz = dz / dist;
-
     p.x += nx * p.speed * delta;
     p.z += nz * p.speed * delta;
   }
 
-  // Separation: push overlapping agents apart (passengers vs player only, not passenger vs passenger)
+  // Separation: push overlapping agents apart (passenger vs player only)
   for (let i = 0; i < agents.length; i++) {
     for (let j = i + 1; j < agents.length; j++) {
       const a = agents[i];
       const b = agents[j];
-      // Skip passenger-passenger pairs
       if (!a.isPlayer && !b.isPlayer) continue;
       const dx = b.x - a.x;
       const dz = b.z - a.z;
@@ -192,7 +222,6 @@ export function updatePassengers(passengers, delta, playerPos) {
         const nx = dx / dist;
         const nz = dz / dist;
 
-        // Push both apart (skip player — player is controlled by input)
         if (!a.isPlayer && a.ref) {
           a.x -= nx * overlap;
           a.z -= nz * overlap;
@@ -215,8 +244,9 @@ export function updatePassengers(passengers, delta, playerPos) {
     p.mesh.position.set(p.x, 0, p.z);
 
     if (p.rushing) {
+      const slotTargetZ = DOOR_Z - p.queueIndex * QUEUE_SPACING;
       const dx = DOOR_X - p.x;
-      const dz = DOOR_Z - p.z;
+      const dz = slotTargetZ - p.z;
       if (Math.abs(dx) + Math.abs(dz) > 0.01) {
         p.mesh.rotation.y = Math.atan2(dx, dz);
       }

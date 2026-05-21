@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
-import { createScene } from './scene.js';
+import { createScene, updateScene } from './scene.js';
 import { createBus } from './bus.js';
 import { createPassengers, resetPassengers, updatePassengers } from './passengers.js';
 
@@ -15,7 +15,15 @@ const BUS_STOP_X = 0;
 const BUS_TRAVEL_SPEED = 8.0;
 const DOOR_TRIGGER_X = 3.5; // Aligned with door frame position on bus
 const DOOR_TRIGGER_Z = -7.5; // Slightly outside the bus on player's side
-const DOOR_TRIGGER_SIZE = 1.5;
+const DOOR_TRIGGER_SIZE = 0.6; // smaller hitbox
+
+// Bus departure timer
+const BUS_WAIT_DURATION = 15; // seconds bus waits before leaving
+let busWaitTimer = 0;
+let busLeaving = false;
+let pendingReset = false;
+let pendingResetAt = 0;
+const BUS_LEAVE_TARGET_X = 120;
 
 // State
 let gameStarted = false;
@@ -66,6 +74,37 @@ const bus = createBus();
 bus.position.set(BUS_START_X, 0, -6);
 scene.add(bus);
 
+// Door departure timer sprite — parented to bus so it follows automatically
+const timerCanvas = document.createElement('canvas');
+timerCanvas.width = 128;
+timerCanvas.height = 64;
+const timerCtx = timerCanvas.getContext('2d');
+const timerTexture = new THREE.CanvasTexture(timerCanvas);
+const timerSpriteMat = new THREE.SpriteMaterial({ map: timerTexture, depthTest: false });
+const timerSprite = new THREE.Sprite(timerSpriteMat);
+timerSprite.scale.set(1.6, 0.8, 1);
+// Sit right above the door on the bus body — door frame is at local x=3.5, z=-1.5, top ~y=2.75
+timerSprite.position.set(3.5, 3.2, -1.51);
+timerSprite.visible = false;
+bus.add(timerSprite); // child of bus, moves with it
+
+function updateTimerSprite(seconds) {
+  timerCtx.clearRect(0, 0, 128, 64);
+  // Background: dark panel flush on the bus
+  timerCtx.fillStyle = seconds <= 5 ? 'rgba(180,20,20,0.95)' : 'rgba(10,10,10,0.92)';
+  timerCtx.fillRect(0, 0, 128, 64);
+  // Border strip
+  timerCtx.strokeStyle = seconds <= 5 ? '#ff6666' : '#555555';
+  timerCtx.lineWidth = 3;
+  timerCtx.strokeRect(2, 2, 124, 60);
+  timerCtx.fillStyle = '#ffffff';
+  timerCtx.font = 'bold 38px Arial';
+  timerCtx.textAlign = 'center';
+  timerCtx.textBaseline = 'middle';
+  timerCtx.fillText(Math.ceil(seconds) + 's', 64, 34);
+  timerTexture.needsUpdate = true;
+}
+
 // Create passengers
 const passengers = createPassengers(scene, 4);
 
@@ -114,8 +153,12 @@ function resetGame() {
   gameWon = false;
   busArrived = false;
   busAnimating = false;
+  busLeaving = false;
+  pendingReset = false;
+  busWaitTimer = 0;
   busCurrentX = BUS_START_X;
   bus.position.x = BUS_START_X;
+  timerSprite.visible = false;
   camera.position.set(PLAYER_START_X, PLAYER_HEIGHT, PLAYER_START_Z);
   camera.rotation.set(0, Math.PI, 0);
   resetPassengers(passengers);
@@ -135,10 +178,16 @@ function triggerDeath() {
     }, 650);
   }, 2000);
 }
-const doorTriggerBox = new THREE.Box3(
-  new THREE.Vector3(DOOR_TRIGGER_X - DOOR_TRIGGER_SIZE, 0, DOOR_TRIGGER_Z - DOOR_TRIGGER_SIZE),
-  new THREE.Vector3(DOOR_TRIGGER_X + DOOR_TRIGGER_SIZE, 3, DOOR_TRIGGER_Z + DOOR_TRIGGER_SIZE)
-);
+const doorTriggerBox = new THREE.Box3();
+
+function updateDoorTriggerBox() {
+  const cx = busCurrentX + DOOR_TRIGGER_X;
+  const cz = DOOR_TRIGGER_Z;
+  doorTriggerBox.set(
+    new THREE.Vector3(cx - DOOR_TRIGGER_SIZE, 0, cz - DOOR_TRIGGER_SIZE),
+    new THREE.Vector3(cx + DOOR_TRIGGER_SIZE, 3, cz + DOOR_TRIGGER_SIZE)
+  );
+}
 
 // Start game on click
 overlay.addEventListener('click', () => {
@@ -215,8 +264,9 @@ const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
   
-  const delta = clock.getDelta();
-  
+  const rawDelta = clock.getDelta();
+  const delta = Math.min(rawDelta, 0.1); // clamp to prevent huge delta spikes after pauses
+
   if (gameStarted && !gameWon) {
     // Handle movement
     const velocity = new THREE.Vector3();
@@ -267,6 +317,9 @@ function animate() {
         busCurrentX = BUS_STOP_X;
         busArrived = true;
         busAnimating = false;
+        busWaitTimer = BUS_WAIT_DURATION;
+        timerSprite.visible = true;
+        updateTimerSprite(busWaitTimer);
         // Tell passengers to start moving
         passengers.forEach(p => { p.rushing = true; });
       }
@@ -281,32 +334,70 @@ function animate() {
     }
 
     // Update passengers
-    if (busArrived) {
+    if (busArrived && !busLeaving) {
       const playerPos = { x: camera.position.x, z: camera.position.z };
       updatePassengers(passengers, delta, playerPos);
+
+      // Count down departure timer
+      busWaitTimer -= delta;
+      updateTimerSprite(Math.max(0, busWaitTimer));
+      if (busWaitTimer <= 0) {
+        busLeaving = true;
+        busArrived = false;
+        timerSprite.visible = false;
+      }
     }
 
-    // Check door trigger
-    if (busArrived) {
+    // Bus leaving animation
+    if (busLeaving) {
+      busCurrentX += BUS_TRAVEL_SPEED * delta;
+      bus.position.x = busCurrentX;
+      if (busCurrentX > BUS_LEAVE_TARGET_X) {
+        busLeaving = false;
+        pendingReset = true;
+        pendingResetAt = performance.now() + 1500;
+      }
+    }
+
+    // Deferred bus reset — handled in-loop so delta is properly drained
+    if (pendingReset && performance.now() >= pendingResetAt) {
+      pendingReset = false;
+      busCurrentX = BUS_START_X;
+      bus.position.x = BUS_START_X;
+      busWaitTimer = 0;
+      resetPassengers(passengers);
+      // Drain accumulated clock delta before starting bus animation
+      clock.getDelta();
+      busAnimating = true;
+    }
+
+    // Check door trigger — only allowed if no passenger is waiting ahead in queue
+    if (busArrived && !busLeaving) {
+      updateDoorTriggerBox();
       const playerBox = new THREE.Box3(
         new THREE.Vector3(camera.position.x - 0.3, camera.position.y - PLAYER_HEIGHT, camera.position.z - 0.3),
         new THREE.Vector3(camera.position.x + 0.3, camera.position.y + 0.5, camera.position.z + 0.3)
       );
       
       if (doorTriggerBox.intersectsBox(playerBox)) {
-        // Win condition
-        elapsedTime = ((performance.now() - timerStart) / 1000).toFixed(2);
-        gameWon = true;
-        controls.unlock();
-        winScreen.querySelector('#win-message').textContent = 'You caught the bus!';
-        document.getElementById('win-time').textContent = `Time: ${elapsedTime}s`;
-        saveAndRenderScores(elapsedTime);
-        winScreen.classList.add('visible');
+        // Block boarding if any passenger is still waiting in queue (slot 0 or moving to it)
+        const passengerAhead = passengers.some(p => !p.boarded && p.rushing && p.queueIndex >= 0);
+        if (!passengerAhead) {
+          // Win condition
+          elapsedTime = ((performance.now() - timerStart) / 1000).toFixed(2);
+          gameWon = true;
+          controls.unlock();
+          winScreen.querySelector('#win-message').textContent = 'You caught the bus!';
+          document.getElementById('win-time').textContent = `Time: ${elapsedTime}s`;
+          saveAndRenderScores(elapsedTime);
+          winScreen.classList.add('visible');
+        }
       }
     }
   }
   
   renderer.render(scene, camera);
+  updateScene(delta, scene);
 }
 
 animate();

@@ -1,5 +1,89 @@
 import * as THREE from 'three';
 
+// Seagull state kept module-level so updateScene() can animate them
+const seagulls = [];
+let seagullSpawnTimer = 0;
+
+function spawnSeagull(scene) {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshLambertMaterial({ color: 0xf0f0f0 });
+
+  // Simple M-shaped seagull: two flat boxes as wings
+  const wingGeo = new THREE.BoxGeometry(1.4, 0.07, 0.28);
+  const leftWing = new THREE.Mesh(wingGeo, mat);
+  leftWing.position.set(-0.7, 0, 0);
+  group.add(leftWing);
+
+  const rightWing = new THREE.Mesh(wingGeo, mat);
+  rightWing.position.set(0.7, 0, 0);
+  group.add(rightWing);
+
+  // Body
+  const bodyGeo = new THREE.BoxGeometry(0.18, 0.12, 0.55);
+  const body = new THREE.Mesh(bodyGeo, mat);
+  group.add(body);
+
+  // Random start position anywhere around the map edges
+  const side = Math.floor(Math.random() * 4);
+  let startX, startZ;
+  if (side === 0) { startX = -55; startZ = -40 + Math.random() * 60; }       // from left
+  else if (side === 1) { startX = 55; startZ = -40 + Math.random() * 60; }   // from right
+  else if (side === 2) { startX = -40 + Math.random() * 80; startZ = -55; }  // from front
+  else             { startX = -40 + Math.random() * 80; startZ = 55; }        // from back
+
+  const y = 14 + Math.random() * 18; // height 14–32 units
+
+  // Random direction aimed roughly toward opposite side with some spread
+  const angle = Math.atan2(-startZ, -startX) + (Math.random() - 0.5) * 1.2;
+  const speed = 4 + Math.random() * 5;
+  const dirX = Math.cos(angle);
+  const dirZ = Math.sin(angle);
+
+  // Gentle vertical drift
+  const driftY = (Math.random() - 0.5) * 0.4; // slow up/down oscillation speed
+
+  group.position.set(startX, y, startZ);
+  // Face direction of travel: atan2(dirX, dirZ) gives Y rotation so +Z is forward on the model
+  group.rotation.y = Math.atan2(dirX, dirZ);
+
+  const flapSpeed = 1.5 + Math.random() * 2.5;
+  const flapOffset = Math.random() * Math.PI * 2;
+  scene.add(group);
+
+  seagulls.push({ group, leftWing, rightWing, speed, dirX, dirZ, driftY, flapSpeed, t: flapOffset });
+}
+
+export function updateScene(delta, scene) {
+  // Spawn new seagulls occasionally (max 8 at a time)
+  seagullSpawnTimer -= delta;
+  if (seagullSpawnTimer <= 0 && seagulls.length < 8) {
+    spawnSeagull(scene);
+    seagullSpawnTimer = 1.5 + Math.random() * 4;
+  }
+
+  for (let i = seagulls.length - 1; i >= 0; i--) {
+    const s = seagulls[i];
+    s.t += delta;
+
+    s.group.position.x += s.dirX * s.speed * delta;
+    s.group.position.z += s.dirZ * s.speed * delta;
+    // Gentle bobbing
+    s.group.position.y += Math.sin(s.t * 0.7) * s.driftY * delta;
+
+    // Flap wings
+    const flap = Math.sin(s.t * s.flapSpeed * Math.PI * 2) * 0.38;
+    s.leftWing.rotation.z = 0.15 + flap;
+    s.rightWing.rotation.z = -(0.15 + flap);
+
+    // Remove when well off screen
+    const p = s.group.position;
+    if (p.x > 65 || p.x < -65 || p.z > 65 || p.z < -65) {
+      scene.remove(s.group);
+      seagulls.splice(i, 1);
+    }
+  }
+}
+
 export function createScene(scene) {
   // Lighting
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -15,7 +99,21 @@ export function createScene(scene) {
   sunLight.shadow.mapSize.width = 2048;
   sunLight.shadow.mapSize.height = 2048;
   scene.add(sunLight);
-  
+
+  // Sun — visible sphere in the sky matching light direction
+  const sunGeo = new THREE.SphereGeometry(2.8, 16, 16);
+  const sunMat = new THREE.MeshBasicMaterial({ color: 0xfff176 });
+  const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+  sunMesh.position.set(30, 45, -30);
+  scene.add(sunMesh);
+
+  // Sun glow halo (slightly larger, semi-transparent)
+  const haloGeo = new THREE.SphereGeometry(4.2, 16, 16);
+  const haloMat = new THREE.MeshBasicMaterial({ color: 0xffee58, transparent: true, opacity: 0.25 });
+  const haloMesh = new THREE.Mesh(haloGeo, haloMat);
+  haloMesh.position.copy(sunMesh.position);
+  scene.add(haloMesh);
+
   // Ground (grass)
   const groundGeometry = new THREE.PlaneGeometry(100, 100);
   const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x4a7c3b });
