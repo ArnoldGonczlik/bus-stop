@@ -73,6 +73,14 @@ canvas {
   user-select: none;
 }
 
+#win-restart {
+  color: #666666;
+  font-size: 20px;
+  text-align: center;
+  margin-top: 24px;
+  user-select: none;
+}
+
 #death-screen {
   position: fixed;
   top: 0;

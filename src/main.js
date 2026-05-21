@@ -74,36 +74,42 @@ const bus = createBus();
 bus.position.set(BUS_START_X, 0, -6);
 scene.add(bus);
 
-// Door departure timer sprite — parented to bus so it follows automatically
 const timerCanvas = document.createElement('canvas');
-timerCanvas.width = 128;
-timerCanvas.height = 64;
+timerCanvas.width = 256;
+timerCanvas.height = 82;
 const timerCtx = timerCanvas.getContext('2d');
 const timerTexture = new THREE.CanvasTexture(timerCanvas);
-const timerSpriteMat = new THREE.SpriteMaterial({ map: timerTexture, depthTest: false });
-const timerSprite = new THREE.Sprite(timerSpriteMat);
-timerSprite.scale.set(1.6, 0.8, 1);
-// Sit right above the door on the bus body — door frame is at local x=3.5, z=-1.5, top ~y=2.75
-timerSprite.position.set(3.5, 3.2, -1.51);
-timerSprite.visible = false;
-bus.add(timerSprite); // child of bus, moves with it
+// No UV flips — mirroring handled in canvas draw
+const timerMat = new THREE.MeshBasicMaterial({ map: timerTexture, side: THREE.FrontSide });
+const timerPlane = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.45), timerMat);
+// Rotated to face -Z (toward player). Added directly to scene, not bus group,
+// so we can set its world orientation freely. Position synced to bus each frame.
+timerPlane.rotation.y = Math.PI;
+timerPlane.visible = false;
+scene.add(timerPlane);
+
+function syncTimerPosition() {
+  timerPlane.position.set(busCurrentX + 3.5, 2.5, -6 + (-1.585));
+}
 
 function updateTimerSprite(seconds) {
-  timerCtx.clearRect(0, 0, 128, 64);
-  // Background: dark panel flush on the bus
-  timerCtx.fillStyle = seconds <= 5 ? 'rgba(180,20,20,0.95)' : 'rgba(10,10,10,0.92)';
-  timerCtx.fillRect(0, 0, 128, 64);
-  // Border strip
-  timerCtx.strokeStyle = seconds <= 5 ? '#ff6666' : '#555555';
+  const W = 256, H = 82;
+  timerCtx.clearRect(0, 0, W, H);
+  timerCtx.fillStyle = '#000000';
+  timerCtx.fillRect(0, 0, W, H);
+  timerCtx.strokeStyle = seconds <= 5 ? '#ff3333' : '#333333';
   timerCtx.lineWidth = 3;
-  timerCtx.strokeRect(2, 2, 124, 60);
-  timerCtx.fillStyle = '#ffffff';
-  timerCtx.font = 'bold 38px Arial';
+  timerCtx.strokeRect(2, 2, W - 4, H - 4);
+  timerCtx.fillStyle = seconds <= 5 ? '#ff3333' : '#ffffff';
+  timerCtx.font = 'bold 28px "Courier New", monospace';
   timerCtx.textAlign = 'center';
   timerCtx.textBaseline = 'middle';
-  timerCtx.fillText(Math.ceil(seconds) + 's', 64, 34);
+  timerCtx.fillText(String(Math.ceil(seconds)).padStart(2, '0') + 's', W / 2, H / 2);
   timerTexture.needsUpdate = true;
 }
+
+// Alias so the rest of the code referencing timerSprite still works
+const timerSprite = timerPlane;
 
 // Create passengers
 const passengers = createPassengers(scene, 4);
@@ -216,6 +222,14 @@ controls.addEventListener('unlock', () => {
 
 // Keyboard input
 window.addEventListener('keydown', (e) => {
+  // Restart from win screen with R
+  if (e.code === 'KeyR' && gameWon) {
+    winScreen.classList.remove('visible');
+    gameWon = false;
+    resetGame();
+    return;
+  }
+
   if (!gameStarted || gameWon) return;
   
   switch(e.code) {
@@ -286,26 +300,28 @@ function animate() {
     
     if (velocity.length() > 0) {
       velocity.normalize().multiplyScalar(MOVE_SPEED * delta);
-      
-      const newPosition = camera.position.clone().add(velocity);
-      
-      // Simple boundary constraints
-      const inBounds = newPosition.x > -25 && newPosition.x < 25 &&
-                       newPosition.z > -20 && newPosition.z < 10;
 
-      // Bus solid collision: block if new position is inside bus body
-      const hitsBus = playerIntersectsBus(newPosition.x, newPosition.z);
+      const pos = camera.position;
 
-      // Passenger collision
-      const hitsPassenger = passengers.some(p => {
-        if (p.boarded) return false;
-        const dx = newPosition.x - p.x;
-        const dz = newPosition.z - p.z;
-        return Math.sqrt(dx * dx + dz * dz) < 0.35 + 0.38;
-      });
+      function blocked(nx, nz) {
+        if (nx < -25 || nx > 25 || nz < -20 || nz > 10) return true;
+        if (playerIntersectsBus(nx, nz)) return true;
+        if (passengers.some(p => {
+          if (p.boarded) return false;
+          const dx = nx - p.x, dz = nz - p.z;
+          return dx * dx + dz * dz < (0.35 + 0.38) * (0.35 + 0.38);
+        })) return true;
+        return false;
+      }
 
-      if (inBounds && !hitsBus && !hitsPassenger) {
-        camera.position.add(velocity);
+      const fx = pos.x + velocity.x;
+      const fz = pos.z + velocity.z;
+      if (!blocked(fx, fz)) {
+        pos.x = fx;
+        pos.z = fz;
+      } else {
+        if (!blocked(fx, pos.z)) pos.x = fx;
+        if (!blocked(pos.x, fz)) pos.z = fz;
       }
     }
     
@@ -335,6 +351,7 @@ function animate() {
 
     // Update passengers
     if (busArrived && !busLeaving) {
+      syncTimerPosition();
       const playerPos = { x: camera.position.x, z: camera.position.z };
       updatePassengers(passengers, delta, playerPos);
 
@@ -352,6 +369,13 @@ function animate() {
     if (busLeaving) {
       busCurrentX += BUS_TRAVEL_SPEED * delta;
       bus.position.x = busCurrentX;
+
+      // Kill player if the departing bus runs them over
+      if (playerIntersectsBus(camera.position.x, camera.position.z)) {
+        triggerDeath();
+        return;
+      }
+
       if (busCurrentX > BUS_LEAVE_TARGET_X) {
         busLeaving = false;
         pendingReset = true;
@@ -380,8 +404,15 @@ function animate() {
       );
       
       if (doorTriggerBox.intersectsBox(playerBox)) {
-        // Block boarding if any passenger is still waiting in queue (slot 0 or moving to it)
-        const passengerAhead = passengers.some(p => !p.boarded && p.rushing && p.queueIndex >= 0);
+        // Block only if any rushing passenger is closer to the door than the player
+        const DOOR_X = busCurrentX + 3.5;
+        const DOOR_Z = -7.5;
+        const playerDist = (camera.position.x - DOOR_X) ** 2 + (camera.position.z - DOOR_Z) ** 2;
+        const passengerAhead = passengers.some(p => {
+          if (p.boarded || !p.rushing) return false;
+          const pDist = (p.x - DOOR_X) ** 2 + (p.z - DOOR_Z) ** 2;
+          return pDist < playerDist;
+        });
         if (!passengerAhead) {
           // Win condition
           elapsedTime = ((performance.now() - timerStart) / 1000).toFixed(2);
