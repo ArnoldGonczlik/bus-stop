@@ -1,0 +1,214 @@
+{
+  "bus": {
+    "happy": {
+      "idle": [
+        "En fin morgen i Oslo!",
+        "Ruter er faktisk ganske greit.",
+        "Tok med matpakke i dag.",
+        "Heldigvis ingen regn i dag.",
+        "God kaffe fra Fuglen i morges.",
+        "Reiste tidlig for en gangs skyld.",
+        "Vaffeldagen på jobben i dag!",
+        "Bare ni år til pensjon.",
+        "Deilig å bo nær T-banen.",
+        "Kjøpte skolebolle på vei hit."
+      ],
+      "arriving": [
+        "Der er bussen! Fantastisk!",
+        "Oi, presis i dag!",
+        "Perfekt timing!",
+        "Ja, nå kan vi dra!",
+        "Herlig, ikke for sent!",
+        "Der kommer den!"
+      ],
+      "boarding": [
+        "Etter deg.",
+        "Inn vi går!",
+        "Nesten fremme.",
+        "Dette går fint.",
+        "Rett inn.",
+        "Ha det bra alle!"
+      ]
+    },
+    "neutral": {
+      "idle": [
+        "Enda en mandag.",
+        "8:47, som alltid.",
+        "Håper det er varmt på kontoret.",
+        "Tilbake til hverdagen.",
+        "Kvartalsrapport i dag.",
+        "Tre møter før lunsj.",
+        "Skulle ha syklet.",
+        "Samme som alltid.",
+        "Jobber ved Aker Brygge.",
+        "Burde tatt T-banen."
+      ],
+      "arriving": [
+        "Der er den.",
+        "Greit det.",
+        "Presis nok.",
+        "Opp vi går.",
+        "Endelig.",
+        "På tide."
+      ],
+      "boarding": [
+        "Etter deg.",
+        "Nå drar vi.",
+        "Snart inne.",
+        "Greit.",
+        "Kom igjen.",
+        "En etter en."
+      ]
+    },
+    "angry": {
+      "idle": [
+        "Tredje gang denne uka.",
+        "Sa til sjefen jeg var der kl. ni.",
+        "Vi betaler skatt for DETTE?",
+        "Burde tatt bilen.",
+        "Om jeg er sen en gang til...",
+        "Appen sa fire minutter. Løgn.",
+        "Beina er stive av kulda.",
+        "Har stått her i tjue minutter.",
+        "HR vil ha meg inne kl. halv ti.",
+        "De betaler ikke overtid likevel."
+      ],
+      "arriving": [
+        "Endelig, for pokker.",
+        "ENDELIG!!!",
+        "Du er kjempesent ute!",
+        "Tjue minutter. Tjue.",
+        "IKKE vær full.",
+        "Tok lang nok tid!"
+      ],
+      "boarding": [
+        "Enkeltbillett, takk.",
+        "Unnskyld. Jeg skal inn.",
+        "Noen av oss har jobb.",
+        "Skynd dere litt.",
+        "Ikke gjør meg sen nå.",
+        "SLIPP MEG INN!"
+      ]
+    },
+    "erratic": {
+      "idle": [
+        "...syv og førti... syv og førti...",
+        "De vet det. Alle vet det.",
+        "Frekvensen er feil i dag.",
+        "Ikke se på den direkte.",
+        "Tolv skritt. Alltid tolv.",
+        "Det var her i går. HER.",
+        "Tredje lyktestolpe. Alltid den tredje.",
+        "Bussen er en metafor.",
+        "Noe er galt i dag.",
+        "Ruten har endret seg."
+      ],
+      "arriving": [
+        "Den kom. Som spådd.",
+        "Greit. OK. Dette er det.",
+        "Maskinen ankommer.",
+        "Ikke nå. Ikke nå. NÅ.",
+        "Ventet. Uventet. Begge deler.",
+        "Notert."
+      ],
+      "boarding": [
+        "Skritt. Skritt. Ikke se tilbake.",
+        "På. Bare kom på. OK.",
+        "Inn. Bare inn.",
+        "Terskelen.",
+        "En fot, så den andre.",
+        "Nå eller aldri."
+      ]
+    }
+  },
+  "cafe": {
+    "happy": {
+      "idle": [
+        "Deilig å sitte her i ro.",
+        "Kaffen er god her.",
+        "Ingen hastverk i dag.",
+        "Hjemmekontor etterpå.",
+        "Oslo om morgenen er herlig.",
+        "Ser på folk som går forbi.",
+        "Rolig og fint her ute.",
+        "Nyter øyeblikket.",
+        "Perfekt vær til dette.",
+        "Ingen møter i dag. Endelig."
+      ],
+      "arriving": [
+        "Der er bussen.",
+        "Ikke for meg i dag.",
+        "Lykke til, da!",
+        "God tur!",
+        "Ha det bra alle!"
+      ],
+      "boarding": ["Ikke min buss.", "Bare ta den."]
+    },
+    "neutral": {
+      "idle": [
+        "Tar en pause.",
+        "Fem minutter fred.",
+        "Leser nyhetsfeeden.",
+        "Ingen som plager meg her.",
+        "Kunne vært verre.",
+        "Sitter bare her.",
+        "Ikke noe hastverk.",
+        "Litt frisk luft.",
+        "Ta det med ro.",
+        "Sjekker telefonen."
+      ],
+      "arriving": [
+        "Bussen er der.",
+        "Tar den ikke.",
+        "Passer for dem.",
+        "Presis nok.",
+        "Der drar de."
+      ],
+      "boarding": ["Ikke min buss.", "Bare gå på."]
+    },
+    "angry": {
+      "idle": [
+        "For bråkete der inne.",
+        "Kaffen ble kald.",
+        "Hvorfor er det alltid vind her?",
+        "Folk bare går forbi og stirrer.",
+        "Klarer ikke fem minutter fred.",
+        "Elendig wifi her også.",
+        "Støyete folk i dag.",
+        "Ville ikke ha kaffe likevel.",
+        "Stolen er ubehagelig.",
+        "Duer overalt i Oslo."
+      ],
+      "arriving": [
+        "Den bussen igjen.",
+        "Lykke til med det.",
+        "Lukter diesel.",
+        "Alltid for sen uansett.",
+        "Ikke mitt problem."
+      ],
+      "boarding": ["Ikke min buss.", "Vil heller sitte her."]
+    },
+    "erratic": {
+      "idle": [
+        "Stolen vet noe.",
+        "Har vært her før. HER.",
+        "Ser på. Ser alltid på.",
+        "Kaffen er et budskap.",
+        "Mønstre overalt i Oslo.",
+        "Alt henger sammen.",
+        "Torsdag, tror jeg.",
+        "Fuglene lytter.",
+        "Ikke beveg deg. Stå rolig.",
+        "Hvert bord har et nummer."
+      ],
+      "arriving": [
+        "Maskinen passerer.",
+        "Den drar. Den drar alltid.",
+        "Ikke i dag. Ikke ennå.",
+        "Planlagt. Forutsigbart.",
+        "Notert. Notert."
+      ],
+      "boarding": ["Ikke ennå.", "Ikke denne."]
+    }
+  }
+}

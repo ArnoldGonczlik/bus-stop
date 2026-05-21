@@ -1,0 +1,214 @@
+{
+  "bus": {
+    "happy": {
+      "idle": [
+        "At least it's Friday.",
+        "Coffee was excellent today.",
+        "Left early for once.",
+        "Got my packed lunch today.",
+        "Lovely morning, this.",
+        "Meeting got pushed back.",
+        "Almost pension age.",
+        "Wife made sandwiches.",
+        "Nice quiet commute.",
+        "Not a bad day at all."
+      ],
+      "arriving": [
+        "There we go.",
+        "Right on time today.",
+        "Perfect. Not late.",
+        "Good. Let's go.",
+        "Lovely timing.",
+        "There it comes!"
+      ],
+      "boarding": [
+        "After you.",
+        "In we go.",
+        "Nearly there.",
+        "Good stuff.",
+        "Right then.",
+        "All aboard!"
+      ]
+    },
+    "neutral": {
+      "idle": [
+        "Another Monday.",
+        "The 8:47, as usual.",
+        "Hope the heating's on.",
+        "Back to it, I suppose.",
+        "Quarterly review today.",
+        "Three meetings before lunch.",
+        "Should've driven.",
+        "Same as always.",
+        "Need to sort that spreadsheet.",
+        "Could do with a holiday."
+      ],
+      "arriving": [
+        "Right then.",
+        "Bus is here.",
+        "About time.",
+        "Here we go.",
+        "Finally.",
+        "On time enough."
+      ],
+      "boarding": [
+        "After you.",
+        "Getting on.",
+        "In we go.",
+        "Right.",
+        "Let's get on.",
+        "One at a time."
+      ]
+    },
+    "angry": {
+      "idle": [
+        "Third time this week.",
+        "Told them I'd be in by nine.",
+        "I pay taxes for THIS?",
+        "Could've taken the car.",
+        "If I'm late one more time...",
+        "App said four minutes. Liar.",
+        "My feet are killing me.",
+        "Been here twenty minutes.",
+        "HR wants me in at half nine.",
+        "They won't pay overtime."
+      ],
+      "arriving": [
+        "Finally. Honestly.",
+        "About bloody time.",
+        "Right. FINALLY.",
+        "Twenty minutes. Twenty.",
+        "Do NOT be full.",
+        "Took long enough!"
+      ],
+      "boarding": [
+        "Single, please.",
+        "Excuse me. Coming through.",
+        "Some of us have jobs.",
+        "Move along.",
+        "Do not make me late.",
+        "LET ME ON!"
+      ]
+    },
+    "erratic": {
+      "idle": [
+        "...forty-seven... forty-eight...",
+        "They know. They all know.",
+        "The frequency is off today.",
+        "Don't look at it directly.",
+        "Twelve steps. Always twelve.",
+        "It was here yesterday. HERE.",
+        "Third lamppost. Always third.",
+        "The bus is a metaphor.",
+        "Something feels wrong today.",
+        "The route has changed."
+      ],
+      "arriving": [
+        "It came. As foretold.",
+        "Right. OK. This is it.",
+        "The machine arrives.",
+        "Not yet. Not yet. NOW.",
+        "Expected. Unexpected. Both.",
+        "Noted."
+      ],
+      "boarding": [
+        "Step. Step. Don't look back.",
+        "Getting on. Getting on. OK.",
+        "In. Just get in.",
+        "The threshold.",
+        "One foot then the other.",
+        "Now or never."
+      ]
+    }
+  },
+  "cafe": {
+    "happy": {
+      "idle": [
+        "Nice morning for a sit-down.",
+        "Love it out here.",
+        "Coffee's good today.",
+        "Such a lovely spot.",
+        "No rush at all.",
+        "Working from home today.",
+        "Just people watching.",
+        "Peaceful out here.",
+        "Perfect weather for this.",
+        "Taking my time today."
+      ],
+      "arriving": [
+        "There's the bus.",
+        "Not for me today.",
+        "Good for them.",
+        "Enjoy the ride!",
+        "Safe travels."
+      ],
+      "boarding": ["Not my bus.", "You go ahead."]
+    },
+    "neutral": {
+      "idle": [
+        "Just having a break.",
+        "Few minutes of peace.",
+        "Nice and quiet.",
+        "Reading my phone.",
+        "Nobody bothering me.",
+        "Could be worse.",
+        "Just sitting here.",
+        "Not in a rush.",
+        "Bit of fresh air.",
+        "Taking it easy."
+      ],
+      "arriving": [
+        "Bus is here.",
+        "Not taking it.",
+        "Suits them.",
+        "Right on schedule.",
+        "Off they go."
+      ],
+      "boarding": ["Not my bus.", "You go ahead."]
+    },
+    "angry": {
+      "idle": [
+        "Too loud in there.",
+        "Coffee's gone cold.",
+        "Why is it so windy?",
+        "People keep walking past.",
+        "Can't get five minutes.",
+        "Terrible wifi today.",
+        "Noisy lot.",
+        "Chair's uncomfortable.",
+        "Pigeons everywhere.",
+        "Didn't even want coffee."
+      ],
+      "arriving": [
+        "There's that bus again.",
+        "Good luck to them.",
+        "It smells of diesel.",
+        "Always late anyway.",
+        "Not my problem."
+      ],
+      "boarding": ["Not my bus.", "Rather sit here."]
+    },
+    "erratic": {
+      "idle": [
+        "The chair knows.",
+        "Been here before. HERE.",
+        "Watching. Always watching.",
+        "The coffee is a message.",
+        "Patterns everywhere.",
+        "It's all connected.",
+        "Thursday, I think.",
+        "The birds are listening.",
+        "Don't move. Stay still.",
+        "Every table has a number."
+      ],
+      "arriving": [
+        "The machine passes.",
+        "It goes. It always goes.",
+        "Not today. Not yet.",
+        "Scheduled. Predictable.",
+        "Noted. Noted."
+      ],
+      "boarding": ["Not yet.", "Not this one."]
+    }
+  }
+}
