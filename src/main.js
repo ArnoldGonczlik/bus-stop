@@ -2,12 +2,13 @@ import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 import { createScene } from './scene.js';
 import { createBus } from './bus.js';
+import { createPassengers, resetPassengers, updatePassengers } from './passengers.js';
 
 // Constants
 const PLAYER_HEIGHT = 1.7;
 const PLAYER_START_X = 0;
 const PLAYER_START_Z = -15;
-const MOVE_SPEED = 5.0;
+const MOVE_SPEED = 3.2;
 const BUS_ARRIVAL_DELAY = 2000;
 const BUS_START_X = -80;
 const BUS_STOP_X = 0;
@@ -65,6 +66,9 @@ const bus = createBus();
 bus.position.set(BUS_START_X, 0, -6);
 scene.add(bus);
 
+// Create passengers
+const passengers = createPassengers(scene, 4);
+
 // Bus bounding box in local space (approximate full body footprint)
 const BUS_LOCAL_MIN_X = -5.0;
 const BUS_LOCAL_MAX_X = 6.6;
@@ -86,17 +90,36 @@ function playerIntersectsBus(px, pz, r = 0.35) {
          pz + r > b.minZ && pz - r < b.maxZ;
 }
 
+function getScores() {
+  try {
+    return JSON.parse(localStorage.getItem('busStopScores')) || [];
+  } catch {
+    return [];
+  }
+}
+
+function saveAndRenderScores(newTime) {
+  const scores = getScores();
+  scores.push(parseFloat(newTime));
+  scores.sort((a, b) => a - b);
+  const top = scores.slice(0, 5);
+  localStorage.setItem('busStopScores', JSON.stringify(top));
+
+  const el = document.getElementById('high-scores');
+  el.innerHTML = '<strong>Best Times</strong><br>' +
+    top.map((t, i) => `${i + 1}. ${t.toFixed(2)}s`).join('<br>');
+}
+
 function resetGame() {
+  gameWon = false;
   busArrived = false;
   busAnimating = false;
   busCurrentX = BUS_START_X;
   bus.position.x = BUS_START_X;
   camera.position.set(PLAYER_START_X, PLAYER_HEIGHT, PLAYER_START_Z);
-  // Zero both pitch and yaw — controls owns these via its internal euler
-  camera.rotation.set(0, Math.PI, 0); // Face +Z toward road
-  // Show start overlay so player can click to re-lock pointer
+  camera.rotation.set(0, Math.PI, 0);
+  resetPassengers(passengers);
   overlay.classList.remove('hidden');
-  // Bus arrival will be triggered again once player clicks and locks pointer
 }
 
 function triggerDeath() {
@@ -223,7 +246,15 @@ function animate() {
       // Bus solid collision: block if new position is inside bus body
       const hitsBus = playerIntersectsBus(newPosition.x, newPosition.z);
 
-      if (inBounds && !hitsBus) {
+      // Passenger collision
+      const hitsPassenger = passengers.some(p => {
+        if (p.boarded) return false;
+        const dx = newPosition.x - p.x;
+        const dz = newPosition.z - p.z;
+        return Math.sqrt(dx * dx + dz * dz) < 0.35 + 0.38;
+      });
+
+      if (inBounds && !hitsBus && !hitsPassenger) {
         camera.position.add(velocity);
       }
     }
@@ -236,6 +267,8 @@ function animate() {
         busCurrentX = BUS_STOP_X;
         busArrived = true;
         busAnimating = false;
+        // Tell passengers to start moving
+        passengers.forEach(p => { p.rushing = true; });
       }
       
       bus.position.x = busCurrentX;
@@ -246,7 +279,13 @@ function animate() {
         return;
       }
     }
-    
+
+    // Update passengers
+    if (busArrived) {
+      const playerPos = { x: camera.position.x, z: camera.position.z };
+      updatePassengers(passengers, delta, playerPos);
+    }
+
     // Check door trigger
     if (busArrived) {
       const playerBox = new THREE.Box3(
@@ -259,7 +298,9 @@ function animate() {
         elapsedTime = ((performance.now() - timerStart) / 1000).toFixed(2);
         gameWon = true;
         controls.unlock();
+        winScreen.querySelector('#win-message').textContent = 'You caught the bus!';
         document.getElementById('win-time').textContent = `Time: ${elapsedTime}s`;
+        saveAndRenderScores(elapsedTime);
         winScreen.classList.add('visible');
       }
     }
