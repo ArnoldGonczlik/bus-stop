@@ -218,14 +218,29 @@ function wanderBase(wantsBus) {
   }
 }
 
-function makePax(scene, index) {
+const MIN_SPAWN_DIST = 1.0;
+
+function findSpawnPos(existing) {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const x = KIOSK_DOOR_X + (Math.random() - 0.5) * 5;
+    const z = KIOSK_DOOR_Z + (Math.random() - 0.5) * 4;
+    let ok = true;
+    for (const p of existing) {
+      const dx = p.x - x, dz = p.z - z;
+      if (dx*dx + dz*dz < MIN_SPAWN_DIST * MIN_SPAWN_DIST) { ok = false; break; }
+    }
+    if (ok) return { x, z };
+  }
+  return { x: KIOSK_DOOR_X + (Math.random() - 0.5) * 8, z: KIOSK_DOOR_Z + (Math.random() - 0.5) * 6 };
+}
+
+function makePax(scene, index, existing = []) {
   const mood     = pickMood();
   const hasHat   = Math.random() < 0.5;
   const wantsBus = Math.random() < 0.35; // ~35% take the bus, rest stay at café
   const { group: mesh, hat: hatMesh } = makePassengerMesh(hasHat);
 
-  const spawnX = KIOSK_DOOR_X + (Math.random() - 0.5) * 1.2;
-  const spawnZ = KIOSK_DOOR_Z + (Math.random() - 0.5) * 0.8;
+  const { x: spawnX, z: spawnZ } = findSpawnPos(existing);
 
   const { startX, startZ } = wanderBase(wantsBus);
 
@@ -258,12 +273,13 @@ function makePax(scene, index) {
 export function createPassengers(scene, count) {
   const passengers = [];
   for (let i = 0; i < count; i++) {
-    passengers.push(makePax(scene, i));
+    passengers.push(makePax(scene, i, passengers));
   }
   return passengers;
 }
 
 export function resetPassengers(passengers) {
+  const placed = [];
   passengers.forEach((p, i) => {
     p.mood     = pickMood();
     p.hasHat   = Math.random() < 0.5;
@@ -273,8 +289,8 @@ export function resetPassengers(passengers) {
     p.chatTimer = (p.wantsBus ? 10 : 18) + i * 5 + Math.random() * 8;
     p.bubbleHideTimer = 0;
 
-    const spawnX = KIOSK_DOOR_X + (Math.random() - 0.5) * 1.2;
-    const spawnZ = KIOSK_DOOR_Z + (Math.random() - 0.5) * 0.8;
+    const { x: spawnX, z: spawnZ } = findSpawnPos(placed);
+    placed.push({ x: spawnX, z: spawnZ });
     const base = wanderBase(p.wantsBus);
     p.startX = base.startX;
     p.startZ  = base.startZ;
@@ -428,23 +444,57 @@ export function updatePassengers(passengers, delta, playerPos, camera, busState)
     p.z += (dz / dist) * p.speed * delta;
   }
 
-  // Separation: passenger vs player
-  for (let i = 0; i < agents.length; i++) {
-    for (let j = i + 1; j < agents.length; j++) {
-      const a = agents[i];
-      const b = agents[j];
-      if (!a.isPlayer && !b.isPlayer) continue;
-      const dx = b.x - a.x;
-      const dz = b.z - a.z;
-      const distSq = dx * dx + dz * dz;
-      const minDist = PASSENGER_RADIUS * 2;
-      if (distSq < minDist * minDist && distSq > 0.0001) {
-        const dist = Math.sqrt(distSq);
-        const overlap = (minDist - dist) / 2;
-        const nx = dx / dist;
-        const nz = dz / dist;
-        if (!a.isPlayer && a.ref) { a.x -= nx * overlap; a.z -= nz * overlap; a.ref.x = a.x; a.ref.z = a.z; }
-        if (!b.isPlayer && b.ref) { b.x += nx * overlap; b.z += nz * overlap; b.ref.x = b.x; b.ref.z = b.z; }
+  // Separation: run multiple iterations so overlapping chains fully resolve
+  const SEP_ITERS = 3;
+  const minDist = PASSENGER_RADIUS * 2;
+  for (let iter = 0; iter < SEP_ITERS; iter++) {
+    for (let i = 0; i < agents.length; i++) {
+      for (let j = i + 1; j < agents.length; j++) {
+        const a = agents[i];
+        const b = agents[j];
+        const dx = b.x - a.x;
+        const dz = b.z - a.z;
+        const distSq = dx * dx + dz * dz;
+        if (distSq < minDist * minDist) {
+          let nx, nz;
+          if (distSq < 0.0001) {
+            // Exactly on top — give a deterministic nudge so they don't lock
+            const angle = (i * 2.39996) % (Math.PI * 2); // golden-angle spread
+            nx = Math.cos(angle); nz = Math.sin(angle);
+          } else {
+            const dist = Math.sqrt(distSq);
+            nx = dx / dist; nz = dz / dist;
+          }
+          const dist2 = Math.sqrt(distSq < 0.0001 ? 0 : distSq);
+          const overlap = (minDist - (distSq < 0.0001 ? 0 : dist2)) / 2;
+
+          // Player is immovable; non-rushing passengers split equally; rushing ones
+          // are pushed sideways (Z only) to preserve queue column
+          if (!a.isPlayer && a.ref) {
+            if (a.ref.rushing) { a.z -= nz * overlap; a.ref.z = a.z; }
+            else { a.x -= nx * overlap; a.z -= nz * overlap; a.ref.x = a.x; a.ref.z = a.z; }
+          }
+          if (!b.isPlayer && b.ref) {
+            if (b.ref.rushing) { b.z += nz * overlap; b.ref.z = b.z; }
+            else { b.x += nx * overlap; b.z += nz * overlap; b.ref.x = b.x; b.ref.z = b.z; }
+          }
+        }
+      }
+    }
+  }
+
+  // Unstick idle passengers that haven't been able to move toward their target:
+  // if an idle pax is still overlapping another after separation, redirect to a fresh target
+  for (const p of passengers) {
+    if (p.boarded || p.rushing) continue;
+    for (const q of passengers) {
+      if (q === p || q.boarded) continue;
+      const dx = p.x - q.x, dz = p.z - q.z;
+      if (dx*dx + dz*dz < (PASSENGER_RADIUS * 2.2) ** 2) {
+        // Pick a new idle target that steers away
+        p.idleTarget = randomIdleTarget(p.startX, p.startZ);
+        p.idleTimer = 0.2;
+        break;
       }
     }
   }

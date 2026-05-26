@@ -88,8 +88,8 @@ export function updateScene(delta, scene) {
 }
 
 export function createScene(scene) {
-  // Mostly day, with a rare (~15%) night scene
-  const night = Math.random() < 0.15;
+  // 15% chance for night
+  const night = Math.random() < 0.15; // ~15% chance — night is a rare treat
   isNightMode = night;
 
   // Sky + fog
@@ -595,6 +595,35 @@ function addTerrainDetails(scene, night = false) {
   smallTree( 13, -14);
   smallTree( 13.5, -17.5);
   smallTree(-7,  -19);
+
+  // Trees behind the kiosk (z < -22, away from road)
+  const behindKioskTrees = [
+    [4,  -23], [7,  -24], [10, -23.5], [12, -25], [5.5, -26],
+    [8.5,-26], [2,  -25], [11, -27],   [6,  -28], [9,  -28.5],
+    [3,  -27], [13, -23],
+  ];
+  for (const [tx, tz] of behindKioskTrees) {
+    // Mix of small deciduous and conifer trees for variety
+    if (Math.random() < 0.55) {
+      smallTree(tx + (Math.random()-0.5)*1.2, tz + (Math.random()-0.5)*1.2);
+    } else {
+      const scale = 0.75 + Math.random() * 0.5;
+      const trunk2 = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.3 * scale, 0.4 * scale, 3 * scale, 8),
+        new THREE.MeshLambertMaterial({ color: 0x4a3c28 })
+      );
+      trunk2.position.set(tx, 1.5 * scale, tz);
+      trunk2.castShadow = true;
+      scene.add(trunk2);
+      const foliage2 = new THREE.Mesh(
+        new THREE.ConeGeometry(1.5 * scale, 3 * scale, 8),
+        new THREE.MeshLambertMaterial({ color: 0x2d5016 })
+      );
+      foliage2.position.set(tx, 4 * scale, tz);
+      foliage2.castShadow = true;
+      scene.add(foliage2);
+    }
+  }
 
   // Grass tufts throughout open areas (avoid road z:-2 to -10, sidewalk z:-10 to -13)
   const tuftPositions = [
