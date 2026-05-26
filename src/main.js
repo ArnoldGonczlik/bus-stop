@@ -394,7 +394,10 @@ window.addEventListener('resize', () => {
 
 // ---- Animation loop ----
 const clock = new THREE.Clock();
-const _fwd   = new THREE.Vector3(); // reusable — avoids allocation per frame
+const _fwd   = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _up    = new THREE.Vector3(0, 1, 0);
+const _vel   = new THREE.Vector3();
 
 function animate() {
   requestAnimationFrame(animate);
@@ -407,19 +410,19 @@ function animate() {
     camera.getWorldDirection(_fwd);
     _fwd.y = 0;
     _fwd.normalize();
-    const right = new THREE.Vector3().crossVectors(_fwd, new THREE.Vector3(0, 1, 0)).normalize();
+    _right.crossVectors(_fwd, _up).normalize();
 
-    const vel = new THREE.Vector3();
-    if (moveState.forward)  vel.add(_fwd);
-    if (moveState.backward) vel.sub(_fwd);
-    if (moveState.right)    vel.add(right);
-    if (moveState.left)     vel.sub(right);
+    _vel.set(0, 0, 0);
+    if (moveState.forward)  _vel.add(_fwd);
+    if (moveState.backward) _vel.sub(_fwd);
+    if (moveState.right)    _vel.add(_right);
+    if (moveState.left)     _vel.sub(_right);
 
-    const isMoving = vel.length() > 0;
+    const isMoving = _vel.length() > 0;
     if (isMoving) {
-      vel.normalize().multiplyScalar(MOVE_SPEED * delta);
-      const fx = playerX + vel.x;
-      const fz = playerZ + vel.z;
+      _vel.normalize().multiplyScalar(MOVE_SPEED * delta);
+      const fx = playerX + _vel.x;
+      const fz = playerZ + _vel.z;
       if      (!blocked(fx, fz))          { playerX = fx; playerZ = fz; }
       else if (!blocked(fx, playerZ))       playerX = fx;
       else if (!blocked(playerX, fz))       playerZ = fz;

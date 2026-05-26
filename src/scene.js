@@ -88,8 +88,8 @@ export function updateScene(delta, scene) {
 }
 
 export function createScene(scene) {
-  // 50/50 day or night
-  const night = Math.random() < 0.15; // ~15% chance — night is a rare treat
+  // Mostly day, with a rare (~15%) night scene
+  const night = Math.random() < 0.15;
   isNightMode = night;
 
   // Sky + fog
@@ -237,7 +237,14 @@ export function createScene(scene) {
   roof.position.set(0, 2.2, -13);
   roof.castShadow = true;
   scene.add(roof);
-  
+
+  // Back wall of shelter (matches collider in main.js: centre z=-13.3, width 3.5, depth 0.15)
+  const shelterWallGeo = new THREE.BoxGeometry(3.5, 2.2, 0.15);
+  const shelterWallMat = new THREE.MeshLambertMaterial({ color: 0xaaaacc, transparent: true, opacity: 0.6 });
+  const shelterWall = new THREE.Mesh(shelterWallGeo, shelterWallMat);
+  shelterWall.position.set(0, 1.1, -13.3);
+  scene.add(shelterWall);
+
   // Trees (simple forest)
   const trunkGeometry = new THREE.CylinderGeometry(0.3, 0.4, 3, 8);
   const trunkMaterial = new THREE.MeshLambertMaterial({ color: 0x4a3c28 });
@@ -595,8 +602,8 @@ function addTerrainDetails(scene, night = false) {
     [ 14, -14], [ 15, -17], [ 13, -19],
     [-6,  -16], [-5,  -18], [-3,  -17],
     [ 9,  -15], [10,  -18],
-    [-14,  -5], [-10,  -5], [ 10,  2],
-    [-5,   3], [5,    4],  [12,   1],
+    [-14,  4], [-10,   5], [ 10,   2],
+    [-5,   3], [  5,   4], [ 12,   1],
   ];
   for (const [tx, tz] of tuftPositions) grassTuft(tx, tz);
 

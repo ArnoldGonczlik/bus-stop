@@ -29,7 +29,10 @@ const MOOD_TEXT   = { happy: '#1a472a', neutral: '#1a1a2e', angry: '#7d0000', er
 const DIALOGUES = { en: dialogueEn, no: dialogueNo };
 let currentLang = 'no'; // default Norwegian
 
-export function setLanguage(lang) { currentLang = lang; }
+export function setLanguage(lang) {
+  if (DIALOGUES[lang]) currentLang = lang;
+  // silently ignore unsupported lang codes
+}
 export function getCurrentLang() { return currentLang; }
 function getPool(wantsBus) {
   const d = DIALOGUES[currentLang];
@@ -89,7 +92,7 @@ function drawBubble(ctx, text, mood) {
   ctx.lineWidth = 5;
   ctx.stroke();
 
-  // Word-wrapped text with strong black outline
+  // Word-wrapped text with stroke outline for readability over any background
   const maxTW = W - 60;
   ctx.font = 'bold 26px Arial, sans-serif';
   ctx.textAlign = 'center';
@@ -109,7 +112,14 @@ function drawBubble(ctx, text, mood) {
   const lineH = 36;
   const startY = bH / 2 - (lines.length * lineH) / 2 + lineH / 2;
 
-  ctx.fillStyle = '#000000';
+  // Black outline stroke
+  ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+  ctx.lineWidth = 4;
+  for (let i = 0; i < lines.length; i++) {
+    ctx.strokeText(lines[i], W / 2, startY + i * lineH);
+  }
+  // Mood-coloured text fill
+  ctx.fillStyle = MOOD_TEXT[mood];
   for (let i = 0; i < lines.length; i++) {
     ctx.fillText(lines[i], W / 2, startY + i * lineH);
   }
@@ -335,7 +345,8 @@ export function updatePassengers(passengers, delta, playerPos, camera, busState)
     const targetChatState = p.rushing ? 'boarding' : (busClose ? 'arriving' : 'idle');
     if (targetChatState !== p.chatState) {
       p.chatState = targetChatState;
-      p.chatTimer = 0;
+      // Stagger so passengers don't all speak at the same moment
+      p.chatTimer = 2 + Math.random() * 8;
       p.bubbleHideTimer = 0;
       p.bubble.mesh.visible = false;
     }
