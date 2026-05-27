@@ -1,25 +1,30 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="no">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bus Stop</title>
+  <title>Busstopp</title>
   <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
   <div id="overlay">
-    <div id="start-message">Click to start</div>
+    <div id="start-message">Klikk for å starte</div>
   </div>
   <div id="win-screen">
-    <div id="win-message">You caught the bus!</div>
+    <div id="win-message">Du tok bussen!</div>
     <div id="win-time"></div>
     <div id="high-scores"></div>
-    <div id="win-restart">Press R to restart</div>
+    <div id="win-restart">Trykk R for å starte på nytt</div>
   </div>
   <div id="death-screen">
-    <div id="death-message">You died...</div>
+    <div id="death-message">Du ble overkjørt...</div>
   </div>
+
+  <div id="lang-switcher">
+    <button class="lang-btn active" data-lang="no">🇳🇴 Norsk</button>
+    <button class="lang-btn" data-lang="en">🇬🇧 English</button>
+  </div>
+
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
-

@@ -109,3 +109,36 @@ canvas {
   user-select: none;
 }
 
+#lang-switcher {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  z-index: 500;
+}
+
+.lang-btn {
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  user-select: none;
+  font-family: Arial, sans-serif;
+}
+
+.lang-btn:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.lang-btn.active {
+  background: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.6);
+  font-weight: bold;
+}
+
