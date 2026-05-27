@@ -245,49 +245,7 @@ export function createScene(scene) {
   shelterWall.position.set(0, 1.1, -13.3);
   scene.add(shelterWall);
 
-  // Trees (simple forest)
-  const trunkGeometry = new THREE.CylinderGeometry(0.3, 0.4, 3, 8);
-  const trunkMaterial = new THREE.MeshLambertMaterial({ color: 0x4a3c28 });
-  
-  const foliageGeometry = new THREE.ConeGeometry(1.5, 3, 8);
-  const foliageMaterial = new THREE.MeshLambertMaterial({ color: 0x2d5016 });
-  
-  // Create tree rows
-  for (let row = 0; row < 3; row++) {
-    for (let i = 0; i < 12; i++) {
-      const x = -18 + i * 3.5 + (Math.random() - 0.5) * 1.5;
-      const z = 5 + row * 6 + (Math.random() - 0.5) * 2;
-      
-      const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-      trunk.position.set(x, 1.5, z);
-      trunk.castShadow = true;
-      scene.add(trunk);
-      
-      const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
-      foliage.position.set(x, 4, z);
-      foliage.castShadow = true;
-      scene.add(foliage);
-    }
-  }
-  
-  // Additional scattered trees on the sides (kept clear of road z: -2 to -10)
-  const sidePositions = [
-    [-15, 0, -14], [-19, 0, -14], [-22, 0, -14],
-    [15, 0, -14], [19, 0, -14], [22, 0, -14]
-  ];
-  
-  sidePositions.forEach(pos => {
-    const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-    trunk.position.set(pos[0], 1.5, pos[2]);
-    trunk.castShadow = true;
-    scene.add(trunk);
-    
-    const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
-    foliage.position.set(pos[0], 4, pos[2]);
-    foliage.castShadow = true;
-    scene.add(foliage);
-  });
-  
+  placeForest(scene);
   createKiosk(scene);
   addTerrainDetails(scene, night);
 
@@ -296,6 +254,156 @@ export function createScene(scene) {
     roadBounds: { minZ: -10, maxZ: -2 },
     isNight: night,
   };
+}
+
+function placeForest(scene) {
+  // Shared materials (reused across all trees to reduce draw calls)
+  const coniferTrunkMat = new THREE.MeshLambertMaterial({ color: 0x4a3c28 });
+  const coniferFoliageMat = new THREE.MeshLambertMaterial({ color: 0x2d5016 });
+  const decidTrunkMat = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
+  const decidCanopyMats = [
+    new THREE.MeshLambertMaterial({ color: 0x2e7d32 }),
+    new THREE.MeshLambertMaterial({ color: 0x388e3c }),
+    new THREE.MeshLambertMaterial({ color: 0x33691e }),
+  ];
+
+  function conifer(x, z, scale = 1) {
+    const trunkH = 3 * scale;
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.3 * scale, 0.4 * scale, trunkH, 8),
+      coniferTrunkMat
+    );
+    trunk.position.set(x, trunkH / 2, z);
+    trunk.castShadow = true;
+    scene.add(trunk);
+    const coneH = 3 * scale;
+    const foliage = new THREE.Mesh(
+      new THREE.ConeGeometry(1.5 * scale, coneH, 8),
+      coniferFoliageMat
+    );
+    // Sit foliage directly on top of trunk: trunk top = trunkH, cone centre = trunkH + coneH/2
+    foliage.position.set(x, trunkH + coneH / 2, z);
+    foliage.castShadow = true;
+    scene.add(foliage);
+  }
+
+  function deciduous(x, z, scale = 1) {
+    const trunkH = 1.8 * scale;
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12 * scale, 0.18 * scale, trunkH, 8),
+      decidTrunkMat
+    );
+    trunk.position.set(x, trunkH / 2, z);
+    trunk.castShadow = true;
+    scene.add(trunk);
+    const mat = decidCanopyMats[Math.floor(Math.random() * decidCanopyMats.length)];
+    const r = 0.85 * scale;
+    const canopy = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), mat);
+    // Sit canopy so its bottom just touches trunk top
+    canopy.position.set(x, trunkH + r, z);
+    canopy.castShadow = true;
+    scene.add(canopy);
+  }
+
+  function placeTree(x, z) {
+    const s = 0.72 + Math.random() * 0.56;
+    if (Math.random() < 0.5) conifer(x, z, s);
+    else deciduous(x, z, s);
+  }
+
+  // Returns true if position is in a clear zone (road, sidewalk, kiosk, seating area)
+  function isClear(x, z) {
+    // Road: z -2 to -10, full width
+    if (z > -10.5 && z < -1.5) return true;
+    // Sidewalk + bus shelter zone
+    if (z > -14 && z < -10 && x > -8 && x < 10) return true;
+    // Kiosk building + seating area
+    if (x > 2.5 && x < 11 && z > -22.5 && z < -17) return true;
+    // Gravel path corridor between kiosk and sidewalk
+    if (x > 1 && x < 9 && z > -18 && z < -13.5) return true;
+    return false;
+  }
+
+  // Poisson-ish placement: try random positions in a zone, skip if too close to another
+  const placed = [];
+  function tryPlace(x, z, minGap) {
+    if (isClear(x, z)) return;
+    for (const [px, pz] of placed) {
+      const d2 = (x - px) ** 2 + (z - pz) ** 2;
+      if (d2 < minGap * minGap) return;
+    }
+    placed.push([x, z]);
+    placeTree(x, z);
+  }
+
+  // ---- BACK ROW (z +4 to +45): trees behind the player start, densest further out ----
+  // Centre band z 4–18: moderate spacing
+  for (let attempt = 0; attempt < 240; attempt++) {
+    const x = -22 + Math.random() * 44;
+    const z = 4 + Math.random() * 14;
+    tryPlace(x, z, 3.8);
+  }
+  // Back half z 18–45: denser from x edges inward
+  for (let attempt = 0; attempt < 320; attempt++) {
+    const x = -48 + Math.random() * 96;
+    const z = 18 + Math.random() * 27;
+    // Denser toward edges: reduce spacing near x extremes
+    const edgeFactor = Math.abs(x) > 28 ? 2.8 : 3.5;
+    tryPlace(x, z, edgeFactor);
+  }
+
+  // ---- LEFT EDGE (x -14 to -48, z -22 to +45): flanking trees ----
+  for (let attempt = 0; attempt < 260; attempt++) {
+    const x = -14 - Math.random() * 34;
+    const z = -22 + Math.random() * 67;
+    const gap = Math.abs(x) > 30 ? 2.6 : 3.4;
+    tryPlace(x, z, gap);
+  }
+
+  // ---- RIGHT EDGE (x +14 to +48, z -22 to +45): flanking trees ----
+  for (let attempt = 0; attempt < 260; attempt++) {
+    const x = 14 + Math.random() * 34;
+    const z = -22 + Math.random() * 67;
+    const gap = x > 30 ? 2.6 : 3.4;
+    tryPlace(x, z, gap);
+  }
+
+  // ---- BEHIND KIOSK (x -14 to +18, z -22 to -45): extended into far back ----
+  for (let attempt = 0; attempt < 220; attempt++) {
+    const x = -12 + Math.random() * 30;
+    const z = -22 - Math.random() * 23;
+    tryPlace(x, z, 3.2);
+  }
+
+  // ---- NEAR-SHELTER SIDES (x -14 to -8, z -14 to -22): left of shelter ----
+  for (let attempt = 0; attempt < 80; attempt++) {
+    const x = -8 - Math.random() * 8;
+    const z = -13.5 - Math.random() * 9;
+    tryPlace(x, z, 3.0);
+  }
+
+  // ---- RIGHT OF KIOSK (x 11 to 16, z -14 to -22): right flank ----
+  for (let attempt = 0; attempt < 80; attempt++) {
+    const x = 11 + Math.random() * 6;
+    const z = -13.5 - Math.random() * 9;
+    tryPlace(x, z, 3.0);
+  }
+
+  // ---- FRONT-LEFT CORNER (x -14 to -48, z -22 to -1.5): left of road extending to map edge ----
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const x = -14 - Math.random() * 34;
+    const z = -22 + Math.random() * 20.5;
+    const gap = Math.abs(x) > 30 ? 2.6 : 3.2;
+    tryPlace(x, z, gap);
+  }
+
+  // ---- FRONT-RIGHT CORNER (x +14 to +48, z -22 to -1.5): right of road extending to map edge ----
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const x = 14 + Math.random() * 34;
+    const z = -22 + Math.random() * 20.5;
+    const gap = x > 30 ? 2.6 : 3.2;
+    tryPlace(x, z, gap);
+  }
 }
 
 function createKiosk(scene) {
@@ -596,34 +704,6 @@ function addTerrainDetails(scene, night = false) {
   smallTree( 13.5, -17.5);
   smallTree(-7,  -19);
 
-  // Trees behind the kiosk (z < -22, away from road)
-  const behindKioskTrees = [
-    [4,  -23], [7,  -24], [10, -23.5], [12, -25], [5.5, -26],
-    [8.5,-26], [2,  -25], [11, -27],   [6,  -28], [9,  -28.5],
-    [3,  -27], [13, -23],
-  ];
-  for (const [tx, tz] of behindKioskTrees) {
-    // Mix of small deciduous and conifer trees for variety
-    if (Math.random() < 0.55) {
-      smallTree(tx + (Math.random()-0.5)*1.2, tz + (Math.random()-0.5)*1.2);
-    } else {
-      const scale = 0.75 + Math.random() * 0.5;
-      const trunk2 = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.3 * scale, 0.4 * scale, 3 * scale, 8),
-        new THREE.MeshLambertMaterial({ color: 0x4a3c28 })
-      );
-      trunk2.position.set(tx, 1.5 * scale, tz);
-      trunk2.castShadow = true;
-      scene.add(trunk2);
-      const foliage2 = new THREE.Mesh(
-        new THREE.ConeGeometry(1.5 * scale, 3 * scale, 8),
-        new THREE.MeshLambertMaterial({ color: 0x2d5016 })
-      );
-      foliage2.position.set(tx, 4 * scale, tz);
-      foliage2.castShadow = true;
-      scene.add(foliage2);
-    }
-  }
 
   // Grass tufts throughout open areas (avoid road z:-2 to -10, sidewalk z:-10 to -13)
   const tuftPositions = [

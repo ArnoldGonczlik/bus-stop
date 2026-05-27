@@ -11,7 +11,10 @@
         "Almost pension age.",
         "Wife made sandwiches.",
         "Nice quiet commute.",
-        "Not a bad day at all."
+        "Not a bad day at all.",
+        "Got a window seat last time. Hoping again.",
+        "Bus pass finally paid for itself.",
+        "Remembered my umbrella today. First time in months."
       ],
       "arriving": [
         "There we go.",
@@ -19,7 +22,8 @@
         "Perfect. Not late.",
         "Good. Let's go.",
         "Lovely timing.",
-        "There it comes!"
+        "There it comes!",
+        "Smashing. Right on the dot."
       ],
       "boarding": [
         "After you.",
@@ -27,7 +31,8 @@
         "Nearly there.",
         "Good stuff.",
         "Right then.",
-        "All aboard!"
+        "All aboard!",
+        "Lovely. In we pop."
       ]
     },
     "neutral": {
@@ -41,7 +46,12 @@
         "Should've driven.",
         "Same as always.",
         "Need to sort that spreadsheet.",
-        "Could do with a holiday."
+        "Could do with a holiday.",
+        "AI took my colleague's job. Now I commute alone.",
+        "Nearly got hit by an e-scooter. Again.",
+        "Forgot to charge my bus-pass. Brilliant.",
+        "They moved the stop again. No sign anywhere.",
+        "City people walk so fast. How do they do it."
       ],
       "arriving": [
         "Right then.",
@@ -49,7 +59,8 @@
         "About time.",
         "Here we go.",
         "Finally.",
-        "On time enough."
+        "On time enough.",
+        "Right. Let's do this."
       ],
       "boarding": [
         "After you.",
@@ -57,7 +68,8 @@
         "In we go.",
         "Right.",
         "Let's get on.",
-        "One at a time."
+        "One at a time.",
+        "Mind the gap."
       ]
     },
     "angry": {
@@ -71,7 +83,14 @@
         "My feet are killing me.",
         "Been here twenty minutes.",
         "HR wants me in at half nine.",
-        "They won't pay overtime."
+        "They won't pay overtime.",
+        "ChatGPT wrote my annual review. I wrote it better.",
+        "An e-scooter nearly knocked me into the road just now.",
+        "Back home I've got a tractor. Never late with a tractor.",
+        "Why's there no parking here? It's a town, not a maze.",
+        "Fifteen pound for a sandwich. FIFTEEN.",
+        "Nobody told me I needed a contactless card. Nobody.",
+        "This city smells like money and bins."
       ],
       "arriving": [
         "Finally. Honestly.",
@@ -79,7 +98,8 @@
         "Right. FINALLY.",
         "Twenty minutes. Twenty.",
         "Do NOT be full.",
-        "Took long enough!"
+        "Took long enough!",
+        "If it drives past I'm walking."
       ],
       "boarding": [
         "Single, please.",
@@ -87,7 +107,8 @@
         "Some of us have jobs.",
         "Move along.",
         "Do not make me late.",
-        "LET ME ON!"
+        "LET ME ON!",
+        "How do I pay on this thing? Cash? No cash?!"
       ]
     },
     "erratic": {
@@ -101,7 +122,10 @@
         "Third lamppost. Always third.",
         "The bus is a metaphor.",
         "Something feels wrong today.",
-        "The route has changed."
+        "The route has changed.",
+        "The timetable is a suggestion. A suggestion.",
+        "City or countryside. Doesn't matter. We're all waiting.",
+        "I counted seventeen pigeons. That's one too many."
       ],
       "arriving": [
         "It came. As foretold.",
@@ -109,7 +133,8 @@
         "The machine arrives.",
         "Not yet. Not yet. NOW.",
         "Expected. Unexpected. Both.",
-        "Noted."
+        "Noted.",
+        "The steel beast returns."
       ],
       "boarding": [
         "Step. Step. Don't look back.",
@@ -117,7 +142,8 @@
         "In. Just get in.",
         "The threshold.",
         "One foot then the other.",
-        "Now or never."
+        "Now or never.",
+        "Through the door. Through the door. OK."
       ]
     }
   },
@@ -133,16 +159,20 @@
         "Just people watching.",
         "Peaceful out here.",
         "Perfect weather for this.",
-        "Taking my time today."
+        "Taking my time today.",
+        "Oat milk flat white. Couldn't be happier.",
+        "Left a five-star review for this place. Deserved.",
+        "Out here watching the world go by. Lovely."
       ],
       "arriving": [
         "There's the bus.",
         "Not for me today.",
         "Good for them.",
         "Enjoy the ride!",
-        "Safe travels."
+        "Safe travels.",
+        "Rather be here, honestly."
       ],
-      "boarding": ["Not my bus.", "You go ahead."]
+      "boarding": ["Not my bus.", "You go ahead.", "All yours."]
     },
     "neutral": {
       "idle": [
@@ -155,16 +185,20 @@
         "Just sitting here.",
         "Not in a rush.",
         "Bit of fresh air.",
-        "Taking it easy."
+        "Taking it easy.",
+        "On my third coffee. Regretting nothing.",
+        "Mild. Grey. Fine.",
+        "Everything's a subscription now."
       ],
       "arriving": [
         "Bus is here.",
         "Not taking it.",
         "Suits them.",
         "Right on schedule.",
-        "Off they go."
+        "Off they go.",
+        "Good luck to them."
       ],
-      "boarding": ["Not my bus.", "You go ahead."]
+      "boarding": ["Not my bus.", "You go ahead.", "Carry on."]
     },
     "angry": {
       "idle": [
@@ -177,16 +211,22 @@
         "Noisy lot.",
         "Chair's uncomfortable.",
         "Pigeons everywhere.",
-        "Didn't even want coffee."
+        "Didn't even want coffee.",
+        "Six quid for this? It's hot brown water.",
+        "Some bloke sat right next to me. Empty terrace. Right next to ME.",
+        "Back on the farm you'd sit in a field for an hour. Nobody around. Perfect.",
+        "They wrote my name wrong on the cup. It's DAVE. Four letters.",
+        "E-scooters on the pavement again. I nearly inhaled one."
       ],
       "arriving": [
         "There's that bus again.",
         "Good luck to them.",
         "It smells of diesel.",
         "Always late anyway.",
-        "Not my problem."
+        "Not my problem.",
+        "Diesel fumes. Lovely. Great."
       ],
-      "boarding": ["Not my bus.", "Rather sit here."]
+      "boarding": ["Not my bus.", "Rather sit here.", "Not a chance."]
     },
     "erratic": {
       "idle": [
@@ -199,16 +239,20 @@
         "Thursday, I think.",
         "The birds are listening.",
         "Don't move. Stay still.",
-        "Every table has a number."
+        "Every table has a number.",
+        "The milk foam spelled something. I saw it.",
+        "Rural. Urban. Same sky.",
+        "Someone moved the sugar. Someone always moves the sugar."
       ],
       "arriving": [
         "The machine passes.",
         "It goes. It always goes.",
         "Not today. Not yet.",
         "Scheduled. Predictable.",
-        "Noted. Noted."
+        "Noted. Noted.",
+        "It passes. As it must."
       ],
-      "boarding": ["Not yet.", "Not this one."]
+      "boarding": ["Not yet.", "Not this one.", "This is not the one."]
     }
   }
 }
