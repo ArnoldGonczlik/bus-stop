@@ -3,24 +3,37 @@ import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockCont
 import { createScene, updateScene } from './scene.js';
 import { createBus } from './bus.js';
 import { createPassengers, resetPassengers, updatePassengers, forcePassengerChat, setLanguage, setNightMode } from './passengers.js';
+import { initInventory, setInventoryLang, setInventoryVisible, getItemCount, resetInventory } from './inventory.js';
+import { spawnWorldItems, updateWorldItems, resetWorldItems, setHardMode } from './worldItems.js';
+import { createBusDriver, triggerRejection, updateBusDriver, resetBusDriver, shouldDriveBus } from './busDriver.js';
 
 // ---- UI translations ----
 const UI = {
   no: {
-    start:      'Klikk for å starte',
-    win:        'Du tok bussen!',
-    winRestart: 'Trykk R for å starte på nytt',
-    death:      'Du ble overkjørt...',
-    bestTimes:  'Beste tider',
-    timeLabel:  'Tid',
+    start:         'Klikk for å starte',
+    win:           'Du tok bussen!',
+    winRestart:    'Trykk R for å starte på nytt',
+    death:         'Du ble overkjørt...',
+    bestTimes:     'Beste tider',
+    timeLabel:     'Tid',
+    modeTitle:     'Velg vanskelighetsgrad',
+    modeEasy:      'Lett',
+    modeEasyDesc:  'Utforsk fritt',
+    modeHard:      'Vanskelig',
+    modeHardDesc:  'Samle 5 mynter for å gå på',
   },
   en: {
-    start:      'Click to start',
-    win:        'You caught the bus!',
-    winRestart: 'Press R to restart',
-    death:      'You died...',
-    bestTimes:  'Best Times',
-    timeLabel:  'Time',
+    start:         'Click to start',
+    win:           'You caught the bus!',
+    winRestart:    'Press R to restart',
+    death:         'You died...',
+    bestTimes:     'Best Times',
+    timeLabel:     'Time',
+    modeTitle:     'Choose difficulty',
+    modeEasy:      'Easy',
+    modeEasyDesc:  'Explore freely',
+    modeHard:      'Hard',
+    modeHardDesc:  'Collect 5 coins to board',
   },
 };
 let uiLang = 'no';
@@ -28,6 +41,7 @@ let uiLang = 'no';
 function applyLang(lang) {
   uiLang = lang;
   setLanguage(lang);
+  setInventoryLang(lang);
   const t = UI[lang];
   document.getElementById('start-message').textContent  = t.start;
   document.getElementById('win-restart').textContent    = t.winRestart;
@@ -36,11 +50,31 @@ function applyLang(lang) {
   document.querySelectorAll('.lang-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.lang === lang);
   });
+  // Update mode screen text (even if already hidden, harmless)
+  document.getElementById('mode-title').textContent      = t.modeTitle;
+  document.getElementById('mode-easy-label').textContent = t.modeEasy;
+  document.getElementById('mode-easy-desc').textContent  = t.modeEasyDesc;
+  document.getElementById('mode-hard-label').textContent = t.modeHard;
+  document.getElementById('mode-hard-desc').textContent  = t.modeHardDesc;
 }
 
 document.querySelectorAll('.lang-btn').forEach(btn => {
   btn.addEventListener('click', () => applyLang(btn.dataset.lang));
 });
+
+// ---- Mode screen (shown once at page load) ----
+const modeScreen = document.getElementById('mode-screen');
+
+function selectMode(hard) {
+  hardMode = hard;
+  setHardMode(hard);
+  spawnWorldItems(scene);           // coins only spawn in hard mode
+  modeScreen.classList.add('hidden');
+  overlay.classList.remove('hidden');
+}
+
+document.getElementById('mode-easy').addEventListener('click', () => selectMode(false));
+document.getElementById('mode-hard').addEventListener('click', () => selectMode(true));
 
 // ---- Constants ----
 const PLAYER_HEIGHT  = 1.7;
@@ -51,8 +85,9 @@ const MOVE_SPEED     = 3.2;
 const BUS_ARRIVAL_DELAY  = 6000;
 const BUS_START_X        = -120;
 const BUS_STOP_X         = 0;
-const BUS_TRAVEL_SPEED   = 4.5;
-const BUS_LEAVE_TARGET_X = 120;
+const BUS_TRAVEL_SPEED      = 4.5;
+const BUS_KICK_DEPART_SPEED = 24;   // angry driver floors it
+const BUS_LEAVE_TARGET_X    = 120;
 const BUS_WAIT_DURATION  = 15;
 
 const DOOR_TRIGGER_X    = 3.5;
@@ -69,6 +104,13 @@ const BUS_HALF_WIDTH_Z = 1.5;
 let gameStarted = false;
 let gameWon     = false;
 let gameDead    = false;
+let gameKicked  = false;   // rejection cutscene active
+let hardMode    = false;
+
+// Knockback animation state (set when kick lands)
+let kickAnim   = null;    // { startZ, targetZ, timer, duration }
+let shakeTimer = 0;
+const SHAKE_DURATION = 0.55;
 
 let busArrived  = false;
 let busAnimating = false;
@@ -232,6 +274,11 @@ setPlayerViewMode(false);
 // Night: 1–2 lone strangers. Day: 6–8 commuters.
 const passengers = createPassengers(scene, isNight ? 1 + Math.floor(Math.random() * 2) : 6 + Math.floor(Math.random() * 3));
 
+// ---- Inventory & world items ----
+initInventory();
+createBusDriver(scene);
+// spawnWorldItems is called in selectMode() after difficulty is chosen
+
 // ---- Helpers ----
 function getBusWorldBox() {
   return {
@@ -285,6 +332,7 @@ function saveAndRenderScores(newTime) {
 
 function resetGame() {
   gameWon      = false;
+  gameKicked   = false;
   busArrived   = false;
   busAnimating = false;
   busLeaving   = false;
@@ -305,7 +353,15 @@ function resetGame() {
   setPlayerViewMode(false);
 
   resetPassengers(passengers);
+  resetWorldItems(scene);
+  resetBusDriver();
+  resetInventory();
+  kickAnim   = null;
+  shakeTimer = 0;
+  player.group.rotation.x = 0;
+  player.group.position.y = 0;
   overlay.classList.remove('hidden');
+  setInventoryVisible(false);
 }
 
 function triggerDeath() {
@@ -334,6 +390,7 @@ overlay.addEventListener('click', () => controls.lock());
 controls.addEventListener('lock', () => {
   overlay.classList.add('hidden');
   gameStarted = true;
+  setInventoryVisible(true);
   player.group.visible = true;
   idleCursor.style.display = 'block';
   timerStart = performance.now();
@@ -345,9 +402,10 @@ controls.addEventListener('lock', () => {
 controls.addEventListener('unlock', () => {
   idleCursor.style.display     = 'none';
   interactCursor.style.display = 'none';
-  if (!gameWon && !gameDead) {
+  if (!gameWon && !gameDead && !gameKicked) {
     overlay.classList.remove('hidden');
     gameStarted = false;
+    setInventoryVisible(false);
   }
 });
 
@@ -403,6 +461,8 @@ function animate() {
   requestAnimationFrame(animate);
   const rawDelta = clock.getDelta();
   const delta    = Math.min(rawDelta, 0.1);
+
+  tickKickCutscene(delta);
 
   if (gameStarted && !gameWon) {
 
@@ -473,6 +533,9 @@ function animate() {
     updatePassengers(passengers, delta, { x: playerX, z: playerZ }, camera,
       { arriving: busAnimating && !busArrived, busCurrentX });
 
+    // --- World items (coins etc.) ---
+    updateWorldItems(scene, playerX, playerZ, delta, gameStarted);
+
     // --- Bus wait countdown ---
     if (busArrived && !busLeaving) {
       syncTimerPosition();
@@ -516,6 +579,41 @@ function animate() {
         new THREE.Vector3(playerX + 0.3, PLAYER_HEIGHT + 0.5, playerZ + 0.3)
       );
       if (doorTriggerBox.intersectsBox(playerBox)) {
+
+        // ── Hard mode: need 5 coins ─────────────────────────────────────
+        if (hardMode && getItemCount('coin') < 5) {
+          // Freeze player, unlock pointer, start rejection sequence
+          gameStarted = false;
+          gameKicked  = true;
+          controls.unlock();
+          setInventoryVisible(false);
+          timerSprite.visible = false;
+
+          triggerRejection({
+            busCurrentX,
+            passengers,
+            camera,
+            bus,
+            lang: uiLang,
+            onKick: () => {
+              // Start animated knockback — tickKickCutscene drives it each frame
+              kickAnim = {
+                startZ:   playerZ,
+                targetZ:  playerZ - 5.5,   // pushed back hard
+                timer:    0,
+                duration: 0.7,
+              };
+              shakeTimer = SHAKE_DURATION;
+            },
+            onDone: () => {
+              gameKicked = false;
+              resetGame();
+            },
+          });
+          return;
+        }
+
+        // ── Normal boarding ─────────────────────────────────────────────
         const DX = busCurrentX + 3.5, DZ = -7.5;
         const pdist = (playerX - DX) ** 2 + (playerZ - DZ) ** 2;
         const passengerAhead = passengers.some(p => {
@@ -566,6 +664,51 @@ function animate() {
 
   renderer.render(scene, camera);
   updateScene(delta, scene);
+}
+
+// ─── Rejection cutscene update (runs outside normal gameStarted gate) ───────
+function tickKickCutscene(delta) {
+  if (!gameKicked) return;
+
+  // ── Knockback animation ───────────────────────────────────────────────────
+  if (kickAnim) {
+    kickAnim.timer += delta;
+    const t  = Math.min(1, kickAnim.timer / kickAnim.duration);
+    const et = 1 - Math.pow(1 - t, 3);   // ease-out cubic: fast launch, slow settle
+    playerZ  = kickAnim.startZ + (kickAnim.targetZ - kickAnim.startZ) * et;
+
+    // Player body tilts backward (visible in 3rd person; also "felt" through camera)
+    player.group.rotation.x = Math.sin(t * Math.PI * 0.8) * 0.5;
+    player.group.position.set(playerX, Math.sin(t * Math.PI) * -0.10, playerZ);
+
+    if (t >= 1) {
+      player.group.rotation.x = 0;
+      player.group.position.y = 0;
+      kickAnim = null;
+    }
+  } else {
+    player.group.position.set(playerX, 0, playerZ);
+  }
+
+  // ── Screen shake ─────────────────────────────────────────────────────────
+  const shakeAmt = shakeTimer > 0 ? (shakeTimer / SHAKE_DURATION) : 0;
+  shakeTimer = Math.max(0, shakeTimer - delta);
+
+  // ── Camera position (follows player + shake) ─────────────────────────────
+  camera.position.set(
+    playerX + (shakeAmt > 0 ? (Math.random() - 0.5) * 0.14 * shakeAmt : 0),
+    PLAYER_HEIGHT + (shakeAmt > 0 ? (Math.random() - 0.5) * 0.10 * shakeAmt : 0),
+    playerZ,
+  );
+
+  // ── Bus departure: waits 1 s after cutscene starts, then floors it ────────
+  if (shouldDriveBus()) {
+    busCurrentX   += BUS_KICK_DEPART_SPEED * delta;
+    bus.position.x = busCurrentX;
+  }
+
+  // ── busDriver: leg animation + camera rotation toward door/bus ───────────
+  updateBusDriver(delta, camera, busCurrentX);
 }
 
 animate();

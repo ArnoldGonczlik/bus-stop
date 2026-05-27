@@ -1,0 +1,17 @@
+{
+  "items": [
+    {
+      "id": "coin",
+      "name": "Coin",
+      "name_no": "Mynt",
+      "icon": "🪙",
+      "description": "A shiny golden coin.",
+      "description_no": "En skinnende gullmynt.",
+      "color": "#FFD700",
+      "emissive": "#AA8800",
+      "stackable": true,
+      "maxStack": 99
+    }
+  ]
+}
+

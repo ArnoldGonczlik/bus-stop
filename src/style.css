@@ -15,6 +15,93 @@ canvas {
   height: 100vh;
 }
 
+/* ---- Mode selection screen ---- */
+#mode-screen {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 36px;
+  z-index: 300;
+  animation: modeFadeIn 0.4s ease;
+}
+
+#mode-screen.hidden {
+  display: none;
+}
+
+@keyframes modeFadeIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+#mode-title {
+  color: #ffffff;
+  font-size: 32px;
+  font-weight: bold;
+  text-align: center;
+  letter-spacing: 0.03em;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.8);
+}
+
+#mode-cards {
+  display: flex;
+  gap: 28px;
+}
+
+.mode-card {
+  background: rgba(255,255,255,0.07);
+  border: 2px solid rgba(255,255,255,0.18);
+  border-radius: 16px;
+  padding: 32px 38px;
+  width: 220px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.18s, border-color 0.18s, transform 0.15s;
+  font-family: Arial, sans-serif;
+}
+
+.mode-card:hover {
+  background: rgba(255,255,255,0.15);
+  border-color: rgba(255,255,255,0.5);
+  transform: translateY(-4px);
+}
+
+.mode-card--hard {
+  border-color: rgba(220, 50, 50, 0.4);
+  background: rgba(180, 20, 20, 0.08);
+}
+
+.mode-card--hard:hover {
+  background: rgba(200, 30, 30, 0.22);
+  border-color: rgba(255, 80, 80, 0.75);
+}
+
+.mode-card-icon {
+  font-size: 42px;
+  line-height: 1;
+}
+
+.mode-card-label {
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: bold;
+  letter-spacing: 0.02em;
+}
+
+.mode-card-desc {
+  color: rgba(255,255,255,0.55);
+  font-size: 13px;
+  text-align: center;
+  line-height: 1.4;
+}
+
 #overlay {
   position: fixed;
   top: 0;
@@ -140,5 +227,92 @@ canvas {
   background: rgba(255,255,255,0.18);
   border-color: rgba(255,255,255,0.6);
   font-weight: bold;
+}
+
+/* ---- Inventory HUD ---- */
+#inventory-hud {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  display: flex;
+  gap: 8px;
+  z-index: 400;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+#inventory-hud.inv-hidden {
+  opacity: 0;
+}
+
+.inv-slot {
+  width: 64px;
+  height: 64px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.inv-slot.selected.has-item {
+  border-color: #ffd700;
+  box-shadow: 0 0 14px rgba(255, 215, 0, 0.7), inset 0 0 8px rgba(255, 215, 0, 0.15);
+  background: rgba(255, 215, 0, 0.12);
+}
+
+.inv-slot-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.inv-slot-count {
+  position: absolute;
+  bottom: 4px;
+  right: 6px;
+  font-size: 11px;
+  font-weight: bold;
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+  font-family: Arial, sans-serif;
+}
+
+.inv-slot-key {
+  position: absolute;
+  top: 3px;
+  left: 5px;
+  font-size: 10px;
+  color: rgba(255,255,255,0.45);
+  font-family: Arial, sans-serif;
+}
+
+/* ---- Pickup toast ---- */
+#inv-toast {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  background: rgba(0, 0, 0, 0.7);
+  color: #ffd700;
+  font-size: 16px;
+  font-family: Arial, sans-serif;
+  font-weight: bold;
+  padding: 7px 20px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 215, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 450;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+#inv-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
