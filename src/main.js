@@ -20,7 +20,7 @@ const UI = {
     modeEasy:      'Lett',
     modeEasyDesc:  'Utforsk fritt',
     modeHard:      'Vanskelig',
-    modeHardDesc:  'Samle 5 mynter for å gå på',
+    modeHardDesc:  'Samle 10 mynter for å gå på',
   },
   en: {
     start:         'Click to start',
@@ -33,7 +33,7 @@ const UI = {
     modeEasy:      'Easy',
     modeEasyDesc:  'Explore freely',
     modeHard:      'Hard',
-    modeHardDesc:  'Collect 5 coins to board',
+    modeHardDesc:  'Collect 10 coins to board',
   },
 };
 let uiLang = 'no';
@@ -89,6 +89,8 @@ const BUS_TRAVEL_SPEED      = 4.5;
 const BUS_KICK_DEPART_SPEED = 24;   // angry driver floors it
 const BUS_LEAVE_TARGET_X    = 120;
 const BUS_WAIT_DURATION  = 15;
+// Total seconds from game-start until bus arrives (delay + travel time)
+const BUS_ARRIVAL_TOTAL_SECS = BUS_ARRIVAL_DELAY / 1000 + (BUS_STOP_X - BUS_START_X) / BUS_TRAVEL_SPEED;
 
 const DOOR_TRIGGER_X    = 3.5;
 const DOOR_TRIGGER_Z    = -7.5;
@@ -119,6 +121,7 @@ let busWaitTimer = 0;
 let busLeaving   = false;
 let pendingReset = false;
 let pendingResetAt = 0;
+let busArrivalCountdown = BUS_ARRIVAL_TOTAL_SECS; // seconds until bus arrives
 
 let timerStart  = 0;
 let elapsedTime = 0;
@@ -129,7 +132,7 @@ let playerZ = PLAYER_START_Z;
 let thirdPerson = false;
 let bobTimer    = 0;
 
-const moveState = { forward: false, backward: false, left: false, right: false };
+const moveState = { forward: false, backward: false, left: false, right: false, sprint: false };
 
 // ---- Three.js setup ----
 const scene = new THREE.Scene(); // fog + background set by createScene
@@ -189,7 +192,7 @@ document.body.appendChild(interactCursor);
 const INTERACT_DIST_SQ = 2.8 * 2.8;
 let nearestInteractable = null;
 
-const { ground, roadBounds, isNight } = createScene(scene);
+const { ground, roadBounds, isNight, borderWalls, borderMaxOpacity } = createScene(scene);
 setNightMode(isNight);
 
 const bus = createBus();
@@ -226,6 +229,148 @@ function updateTimerSprite(seconds) {
   timerCtx.textBaseline = 'middle';
   timerCtx.fillText(String(Math.ceil(seconds)).padStart(2, '0') + 's', W / 2, H / 2);
   timerTexture.needsUpdate = true;
+}
+
+// ---- Bus arrival information board (standalone structure) ----
+  const poleMat  = new THREE.MeshLambertMaterial({ color: 0x555566 });
+  const frameMat = new THREE.MeshLambertMaterial({ color: 0x1a237e });
+  const sideMat  = new THREE.MeshLambertMaterial({ color: 0x0d1545 });
+
+  // Two support poles
+  const poleGeo = new THREE.CylinderGeometry(0.045, 0.055, 2.8, 8);
+  [-0.72, 0.72].forEach(ox => {
+    const pole = new THREE.Mesh(poleGeo, poleMat);
+    pole.position.set(3.5 + ox, 1.4, -12.5);
+    pole.castShadow = true;
+    scene.add(pole);
+  });
+
+  // Board body (deep box — gives it physical presence)
+  const boardBody = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.1, 0.14), frameMat);
+  boardBody.position.set(3.5, 2.45, -12.5);
+  boardBody.castShadow = true;
+  scene.add(boardBody);
+
+  // Thin coloured top stripe
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.14, 0.145), new THREE.MeshLambertMaterial({ color: 0xf9a825 }));
+  stripe.position.set(3.5, 3.07, -12.5);
+  scene.add(stripe);
+
+  // Side edges (give depth framing effect)
+  const edgeGeo = new THREE.BoxGeometry(0.055, 1.1, 0.145);
+  [-0.92, 0.92].forEach(ox => {
+    const e = new THREE.Mesh(edgeGeo, sideMat);
+    e.position.set(3.5 + ox, 2.45, -12.5);
+    scene.add(e);
+  });
+
+  // Night light underneath board
+  if (isNight) {
+    const pt = new THREE.PointLight(0xaabbff, 1.4, 4, 2);
+    pt.position.set(3.5, 2.1, -12.2);
+    scene.add(pt);
+  }
+
+// Canvas display face — sits flush on the front of the board
+const arrivalCanvas  = document.createElement('canvas');
+arrivalCanvas.width  = 512;
+arrivalCanvas.height = 320;
+const arrivalCtx     = arrivalCanvas.getContext('2d');
+const arrivalTexture = new THREE.CanvasTexture(arrivalCanvas);
+arrivalTexture.minFilter = THREE.LinearFilter;
+arrivalTexture.generateMipmaps = false;
+const arrivalMat    = new THREE.MeshBasicMaterial({ map: arrivalTexture, transparent: false, side: THREE.FrontSide });
+const arrivalSprite = new THREE.Mesh(new THREE.PlaneGeometry(1.68, 1.05), arrivalMat);
+arrivalSprite.position.set(3.5, 2.45, -12.35);
+scene.add(arrivalSprite);
+
+function updateArrivalSign(countdown) {
+  const W = 512, H = 320;
+  const ctx = arrivalCtx;
+  ctx.clearRect(0, 0, W, H);
+
+  // ── Background gradient ──────────────────────────────────────────────────
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0,   '#0d1b5e');
+  bg.addColorStop(1,   '#060d30');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // ── Header bar ───────────────────────────────────────────────────────────
+  ctx.fillStyle = '#f9a825';
+  ctx.fillRect(0, 0, W, 58);
+  ctx.fillStyle = '#1a237e';
+  ctx.font = 'bold 32px Arial, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🚌  RUTE 42', 18, 29);
+  ctx.textAlign = 'right';
+  ctx.fillText(uiLang === 'en' ? 'NOWHERESVILLE' : 'GOKK', W - 18, 29);
+
+  // ── Divider ───────────────────────────────────────────────────────────────
+  ctx.strokeStyle = '#3d5afe';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(16, 70); ctx.lineTo(W - 16, 70); ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  if (busArrived) {
+    // ── BOARDING STATE ───────────────────────────────────────────────────
+    ctx.fillStyle = '#00e676';
+    ctx.font = 'bold 30px Arial, sans-serif';
+    ctx.fillText('● BUSS ER HER', W / 2, 118);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 48px Arial, sans-serif';
+    ctx.fillText('STIG PÅ NÅ', W / 2, 190);
+    // Green pulsing bar (static version — full width)
+    ctx.fillStyle = '#00c853';
+    ctx.beginPath(); ctx.roundRect(20, 240, W - 40, 28, 6); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 18px Arial, sans-serif';
+    ctx.fillText('OMBORDSTIGNING ÅPEN', W / 2, 254);
+
+  } else if (countdown > 0) {
+    // ── COUNTDOWN STATE ───────────────────────────────────────────────────
+    const mins = Math.floor(countdown / 60);
+    const secs = Math.ceil(countdown % 60);
+    const label = mins > 0
+      ? `${mins} min  ${String(secs).padStart(2,'0')} sek`
+      : `${String(secs).padStart(2,'0')} sek`;
+
+    ctx.fillStyle = '#90caf9';
+    ctx.font = '22px Arial, sans-serif';
+    ctx.fillText('NESTE BUSS OM', W / 2, 105);
+
+    ctx.fillStyle = countdown <= 15 ? '#ff5252' : '#ffffff';
+    ctx.font = `bold 72px "Courier New", monospace`;
+    ctx.fillText(label, W / 2, 192);
+
+    // Progress bar (fills as bus approaches)
+    const totalSecs = BUS_ARRIVAL_TOTAL_SECS;
+    const progress  = Math.max(0, 1 - countdown / totalSecs);
+    const barW      = W - 40;
+    ctx.fillStyle   = '#1a2580';
+    ctx.beginPath(); ctx.roundRect(20, 248, barW, 24, 5); ctx.fill();
+    ctx.fillStyle   = countdown <= 15 ? '#ff5252' : '#42a5f5';
+    ctx.beginPath(); ctx.roundRect(20, 248, Math.max(8, barW * progress), 24, 5); ctx.fill();
+    ctx.fillStyle   = 'rgba(255,255,255,0.55)';
+    ctx.font        = 'bold 14px Arial, sans-serif';
+    ctx.fillText(`${Math.round(progress * 100)}%`, W / 2, 260);
+
+  } else {
+    // ── DEPARTED STATE ────────────────────────────────────────────────────
+    ctx.fillStyle = '#ff8a65';
+    ctx.font = 'bold 30px Arial, sans-serif';
+    ctx.fillText('BUSS PASSERT', W / 2, 130);
+    ctx.fillStyle = '#78909c';
+    ctx.font = '24px Arial, sans-serif';
+    ctx.fillText('Venter på neste avgang...', W / 2, 190);
+    ctx.fillStyle = '#37474f';
+    ctx.beginPath(); ctx.roundRect(20, 248, W - 40, 24, 5); ctx.fill();
+  }
+
+  arrivalTexture.needsUpdate = true;
 }
 
 // ---- Player mesh ----
@@ -295,14 +440,14 @@ function playerIntersectsBus(px, pz, r = 0.35) {
 // Static AABB colliders (min/max in world X and Z, expanded by player radius)
 const PR = 0.35; // player radius
 const STATIC_BOXES = [
-  // Kiosk body: centre (7, -20), half-size (2.5, 1.75)
-  { minX: 4.5  - PR, maxX: 9.5  + PR, minZ: -21.75 - PR, maxZ: -18.25 + PR },
+  // Kiosk body: KX=8.9, BW=8.8, BD=8.8 → x 4.5–13.3, z -26.9–-18.1
+  { minX: 4.5  - PR, maxX: 13.3 + PR, minZ: -26.9 - PR, maxZ: -18.1 + PR },
   // Bus shelter back wall: centre (0, -13.3), width 3.5, depth 0.15
   { minX: -1.75 - PR, maxX: 1.75 + PR, minZ: -13.45 - PR, maxZ: -13.15 + PR },
 ];
 
 function blocked(nx, nz) {
-  if (nx < -25 || nx > 25 || nz < -20 || nz > 10) return true;
+  if (nx < -38 || nx > 38 || nz < -35 || nz > 30) return true;
   if (playerIntersectsBus(nx, nz)) return true;
   for (const b of STATIC_BOXES) {
     if (nx > b.minX && nx < b.maxX && nz > b.minZ && nz < b.maxZ) return true;
@@ -341,6 +486,8 @@ function resetGame() {
   busCurrentX  = BUS_START_X;
   bus.position.x = BUS_START_X;
   timerSprite.visible = false;
+  busArrivalCountdown = BUS_ARRIVAL_TOTAL_SECS;
+  updateArrivalSign(busArrivalCountdown);
 
   playerX     = PLAYER_START_X;
   playerZ     = PLAYER_START_Z;
@@ -394,6 +541,7 @@ controls.addEventListener('lock', () => {
   player.group.visible = true;
   idleCursor.style.display = 'block';
   timerStart = performance.now();
+  updateArrivalSign(busArrivalCountdown);
   if (!busAnimating && !busArrived) {
     setTimeout(() => { busAnimating = true; }, BUS_ARRIVAL_DELAY);
   }
@@ -427,6 +575,7 @@ window.addEventListener('keydown', (e) => {
     case 'KeyS': moveState.backward = true; break;
     case 'KeyA': moveState.left     = true; break;
     case 'KeyD': moveState.right    = true; break;
+    case 'ShiftLeft': case 'ShiftRight': moveState.sprint = true; break;
   }
 });
 
@@ -436,6 +585,7 @@ window.addEventListener('keyup', (e) => {
     case 'KeyS': moveState.backward = false; break;
     case 'KeyA': moveState.left     = false; break;
     case 'KeyD': moveState.right    = false; break;
+    case 'ShiftLeft': case 'ShiftRight': moveState.sprint = false; break;
   }
 });
 
@@ -480,7 +630,7 @@ function animate() {
 
     const isMoving = _vel.length() > 0;
     if (isMoving) {
-      _vel.normalize().multiplyScalar(MOVE_SPEED * delta);
+      _vel.normalize().multiplyScalar(MOVE_SPEED * (moveState.sprint ? 1.5 : 1) * delta);
       const fx = playerX + _vel.x;
       const fz = playerZ + _vel.z;
       if      (!blocked(fx, fz))          { playerX = fx; playerZ = fz; }
@@ -491,7 +641,7 @@ function animate() {
     // --- Camera: first-person with head bob, or third-person orbit ---
     if (!thirdPerson) {
       if (isMoving) {
-        bobTimer += delta * Math.PI * 4; // 2 Hz
+        bobTimer += delta * Math.PI * 4 * (moveState.sprint ? 1.5 : 1); // 2 Hz, scales with speed
         camera.position.y = PLAYER_HEIGHT + Math.sin(bobTimer) * 0.038;
       } else {
         bobTimer = 0;
@@ -515,12 +665,16 @@ function animate() {
 
     // --- Bus arrival ---
     if (busAnimating && !busArrived) {
+      busArrivalCountdown = Math.max(0, (BUS_STOP_X - busCurrentX) / BUS_TRAVEL_SPEED);
+      updateArrivalSign(busArrivalCountdown);
       busCurrentX += BUS_TRAVEL_SPEED * delta;
       if (busCurrentX >= BUS_STOP_X) {
         busCurrentX  = BUS_STOP_X;
         busArrived   = true;
         busAnimating = false;
         busWaitTimer = BUS_WAIT_DURATION;
+        busArrivalCountdown = 0;
+        updateArrivalSign(0);
         timerSprite.visible = true;
         updateTimerSprite(busWaitTimer);
         passengers.forEach(p => { if (p.wantsBus) p.rushing = true; });
@@ -536,6 +690,12 @@ function animate() {
     // --- World items (coins etc.) ---
     updateWorldItems(scene, playerX, playerZ, delta, gameStarted);
 
+    // --- Arrival sign: tick countdown during pre-delay phase ---
+    if (!busAnimating && !busArrived && !busLeaving) {
+      busArrivalCountdown = Math.max(0, busArrivalCountdown - delta);
+      updateArrivalSign(busArrivalCountdown);
+    }
+
     // --- Bus wait countdown ---
     if (busArrived && !busLeaving) {
       syncTimerPosition();
@@ -545,6 +705,7 @@ function animate() {
         busLeaving  = true;
         busArrived  = false;
         timerSprite.visible = false;
+        updateArrivalSign(-1); // "departed" state
       }
     }
 
@@ -552,6 +713,7 @@ function animate() {
     if (busLeaving) {
       busCurrentX += BUS_TRAVEL_SPEED * delta;
       bus.position.x = busCurrentX;
+      syncTimerPosition(); // keep sprite pinned to departing bus
       if (playerIntersectsBus(playerX, playerZ)) { triggerDeath(); return; }
       if (busCurrentX > BUS_LEAVE_TARGET_X) {
         busLeaving    = false;
@@ -566,9 +728,11 @@ function animate() {
       busCurrentX  = BUS_START_X;
       bus.position.x = BUS_START_X;
       busWaitTimer = 0;
+      busArrivalCountdown = BUS_ARRIVAL_TOTAL_SECS;
+      updateArrivalSign(busArrivalCountdown);
       resetPassengers(passengers);
       clock.getDelta(); // drain spike
-      busAnimating = true;
+      setTimeout(() => { busAnimating = true; }, BUS_ARRIVAL_DELAY);
     }
 
     // --- Door / win trigger ---
@@ -581,7 +745,7 @@ function animate() {
       if (doorTriggerBox.intersectsBox(playerBox)) {
 
         // ── Hard mode: need 5 coins ─────────────────────────────────────
-        if (hardMode && getItemCount('coin') < 5) {
+        if (hardMode && getItemCount('coin') < 10) {
           // Freeze player, unlock pointer, start rejection sequence
           gameStarted = false;
           gameKicked  = true;
@@ -659,6 +823,19 @@ function animate() {
     if (_fwd.length() > 0.001) {
       _fwd.normalize();
       player.group.rotation.y = Math.atan2(_fwd.x, _fwd.z);
+    }
+  }
+
+  // --- Border wall proximity fade ---
+  {
+    const FADE_START = 8;  // distance at which wall starts appearing
+    const FADE_END   = 2;  // distance at which wall is fully opaque
+    for (const w of borderWalls) {
+      const dist = w.axis === 'x'
+        ? Math.abs(playerX - w.limit)
+        : Math.abs(playerZ - w.limit);
+      const t = 1 - Math.min(1, Math.max(0, (dist - FADE_END) / (FADE_START - FADE_END)));
+      w.mat.opacity = t * borderMaxOpacity;
     }
   }
 

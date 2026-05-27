@@ -162,7 +162,7 @@ export function createBusDriver(scene) {
  * @param {object} opts
  *   busCurrentX, passengers, camera, bus, lang,
  *   onKick (called when foot makes contact),
- *   onDone (called when 10-second cutscene ends)
+ *   onDone (called when 7-second cutscene ends)
  */
 export function triggerRejection({ busCurrentX, passengers, camera, bus, lang, onKick, onDone }) {
   if (phase !== 'idle') return;
@@ -265,7 +265,7 @@ export function updateBusDriver(delta, camera, busCurrentX) {
 
   } else if (phase === 'cutscene') {
     cutsceneTimer += delta;
-    if (cutsceneTimer >= 10) {
+    if (cutsceneTimer >= 7) {
       phase = 'idle';
       if (_doneCb) { _doneCb(); _doneCb = null; }
     }

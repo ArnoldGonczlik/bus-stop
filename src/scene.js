@@ -246,13 +246,40 @@ export function createScene(scene) {
   scene.add(shelterWall);
 
   placeForest(scene);
-  createKiosk(scene);
+  createKiosk(scene, night);
   addTerrainDetails(scene, night);
+
+  // ── World-border fog walls ────────────────────────────────────────────────
+  // Each wall gets its own material so main.js can fade each one independently.
+  const CX = 0, CZ = (30 + -35) / 2;
+  const SPAN_Z = 30 - (-35) + 2;
+  const SPAN_X = 38 * 2 + 2;
+  const WALL_H = 14;
+  const BORDER_MAX_OPACITY = 0.18;
+  const borderWallDefs = [
+    { pos: [-38, WALL_H / 2, CZ  ], ry:  Math.PI / 2, w: SPAN_Z, axis: 'x', limit: -38 },
+    { pos: [ 38, WALL_H / 2, CZ  ], ry: -Math.PI / 2, w: SPAN_Z, axis: 'x', limit:  38 },
+    { pos: [ CX, WALL_H / 2, -35 ], ry: 0,            w: SPAN_X, axis: 'z', limit: -35 },
+    { pos: [ CX, WALL_H / 2,  30 ], ry: Math.PI,      w: SPAN_X, axis: 'z', limit:  30 },
+  ];
+  const borderWalls = borderWallDefs.map(({ pos, ry, w, axis, limit }) => {
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x9bb8d4, transparent: true, opacity: 0,
+      side: THREE.DoubleSide, depthWrite: false,
+    });
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, WALL_H), mat);
+    m.position.set(...pos);
+    m.rotation.y = ry;
+    scene.add(m);
+    return { mat, axis, limit };
+  });
 
   return {
     ground,
     roadBounds: { minZ: -10, maxZ: -2 },
     isNight: night,
+    borderWalls,
+    borderMaxOpacity: BORDER_MAX_OPACITY,
   };
 }
 
@@ -300,7 +327,7 @@ function placeForest(scene) {
     const r = 0.85 * scale;
     const canopy = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), mat);
     // Sit canopy so its bottom just touches trunk top
-    canopy.position.set(x, trunkH + r, z);
+    canopy.position.set(x, trunkH + r * 0.9, z);
     canopy.castShadow = true;
     scene.add(canopy);
   }
@@ -317,10 +344,10 @@ function placeForest(scene) {
     if (z > -10.5 && z < -1.5) return true;
     // Sidewalk + bus shelter zone
     if (z > -14 && z < -10 && x > -8 && x < 10) return true;
-    // Kiosk building + seating area
-    if (x > 2.5 && x < 11 && z > -22.5 && z < -17) return true;
-    // Gravel path corridor between kiosk and sidewalk
-    if (x > 1 && x < 9 && z > -18 && z < -13.5) return true;
+    // Kiosk building + wide clearance (x 4.5–13.3, z -26.9–-18.1, +5 unit margin all sides)
+    if (x > -0.5 && x < 18.5 && z > -32.0 && z < -13.0) return true;
+    // Gravel path corridor between kiosk door and sidewalk
+    if (x > -1.0 && x < 12.0 && z > -19.0 && z < -13.0) return true;
     return false;
   }
 
@@ -337,41 +364,61 @@ function placeForest(scene) {
   }
 
   // ---- BACK ROW (z +4 to +45): trees behind the player start, densest further out ----
-  // Centre band z 4–18: moderate spacing
-  for (let attempt = 0; attempt < 240; attempt++) {
-    const x = -22 + Math.random() * 44;
+  // Centre band z 4–18: wider x coverage now that player can walk to ±38
+  for (let attempt = 0; attempt < 300; attempt++) {
+    const x = -38 + Math.random() * 76;
     const z = 4 + Math.random() * 14;
-    tryPlace(x, z, 3.8);
+    tryPlace(x, z, 3.5);
   }
   // Back half z 18–45: denser from x edges inward
   for (let attempt = 0; attempt < 320; attempt++) {
     const x = -48 + Math.random() * 96;
     const z = 18 + Math.random() * 27;
-    // Denser toward edges: reduce spacing near x extremes
     const edgeFactor = Math.abs(x) > 28 ? 2.8 : 3.5;
     tryPlace(x, z, edgeFactor);
   }
 
-  // ---- LEFT EDGE (x -14 to -48, z -22 to +45): flanking trees ----
-  for (let attempt = 0; attempt < 260; attempt++) {
+  // ---- FAR-ROAD NEAR STRIP (z -1.5 to +4, x -13 to +13): gap between road & back row ----
+  for (let attempt = 0; attempt < 120; attempt++) {
+    const x = -13 + Math.random() * 26;
+    const z = -1.5 + Math.random() * 5.5;
+    tryPlace(x, z, 3.2);
+  }
+
+  // ---- LEFT EDGE (x -14 to -48, z -35 to +45): extended to new z limits ----
+  for (let attempt = 0; attempt < 320; attempt++) {
     const x = -14 - Math.random() * 34;
-    const z = -22 + Math.random() * 67;
+    const z = -35 + Math.random() * 80;
     const gap = Math.abs(x) > 30 ? 2.6 : 3.4;
     tryPlace(x, z, gap);
   }
 
-  // ---- RIGHT EDGE (x +14 to +48, z -22 to +45): flanking trees ----
-  for (let attempt = 0; attempt < 260; attempt++) {
+  // ---- RIGHT EDGE (x +14 to +48, z -35 to +45): extended to new z limits ----
+  for (let attempt = 0; attempt < 320; attempt++) {
     const x = 14 + Math.random() * 34;
-    const z = -22 + Math.random() * 67;
+    const z = -35 + Math.random() * 80;
     const gap = x > 30 ? 2.6 : 3.4;
     tryPlace(x, z, gap);
   }
 
-  // ---- BEHIND KIOSK (x -14 to +18, z -22 to -45): extended into far back ----
+  // ---- FAR FRONT EDGE (z 22–32, full width): trees near the z=30 walkable limit ----
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const x = -48 + Math.random() * 96;
+    const z = 22 + Math.random() * 10;
+    tryPlace(x, z, 2.8);
+  }
+
+  // ---- FAR BACK EDGE (z -32 to -35, full width): trees near the z=-35 limit ----
+  for (let attempt = 0; attempt < 160; attempt++) {
+    const x = -48 + Math.random() * 96;
+    const z = -35 + Math.random() * 5;
+    tryPlace(x, z, 2.8);
+  }
+
+  // ---- BEHIND KIOSK (x -14 to +22, z -27 to -45): extended into far back ----
   for (let attempt = 0; attempt < 220; attempt++) {
-    const x = -12 + Math.random() * 30;
-    const z = -22 - Math.random() * 23;
+    const x = -12 + Math.random() * 34;
+    const z = -27 - Math.random() * 18;
     tryPlace(x, z, 3.2);
   }
 
@@ -382,9 +429,9 @@ function placeForest(scene) {
     tryPlace(x, z, 3.0);
   }
 
-  // ---- RIGHT OF KIOSK (x 11 to 16, z -14 to -22): right flank ----
+  // ---- RIGHT OF KIOSK (x 17 to 23, z -14 to -22): right flank ----
   for (let attempt = 0; attempt < 80; attempt++) {
-    const x = 11 + Math.random() * 6;
+    const x = 17 + Math.random() * 6;
     const z = -13.5 - Math.random() * 9;
     tryPlace(x, z, 3.0);
   }
@@ -406,84 +453,140 @@ function placeForest(scene) {
   }
 }
 
-function createKiosk(scene) {
-  // Kiosk moved further back — front face at z ≈ -18.25
-  const KX = 7, KZ = -20;
-  const FZ = KZ + 1.75; // -18.25
+function createKiosk(scene, night) {
+  // Width reduced 20% from last iteration (11 → 8.8).
+  // Depth expanded to match new width → square-ish deep building.
+  // Left edge kept at x=4.5.  Front face kept at z≈-18.1.
+  const BW = 8.8,  BH = 3.3,  BD = 8.8;
+  const KX = 4.5 + BW / 2;        // 8.9
+  const KZ = -18.1 - BD / 2;      // -22.5
+  const FZ = KZ + BD / 2;         // -18.1  (front face)
+  // Derived edges used by comments / assertions only:
+  // left=4.5  right=13.3  back=-26.9
 
   const wallMat  = new THREE.MeshLambertMaterial({ color: 0xf5e6c8 });
   const roofMat  = new THREE.MeshLambertMaterial({ color: 0x2c5f5f });
   const winMat   = new THREE.MeshLambertMaterial({ color: 0xb8d9f0 });
   const frameMat = new THREE.MeshLambertMaterial({ color: 0x444444 });
   const doorMat  = new THREE.MeshLambertMaterial({ color: 0x7b4f2e });
-  const signMat  = new THREE.MeshLambertMaterial({ color: 0xd32f2f });
   const poleMat  = new THREE.MeshLambertMaterial({ color: 0x999999 });
 
-  // Body
-  const body = new THREE.Mesh(new THREE.BoxGeometry(5, 3, 3.5), wallMat);
-  body.position.set(KX, 1.5, KZ);
+  // ── Body ─────────────────────────────────────────────────────────────────
+  const body = new THREE.Mesh(new THREE.BoxGeometry(BW, BH, BD), wallMat);
+  body.position.set(KX, BH / 2, KZ);
   body.castShadow = true;
   body.receiveShadow = true;
   scene.add(body);
 
-  // Roof
-  const roof = new THREE.Mesh(new THREE.BoxGeometry(5.5, 0.28, 4.0), roofMat);
-  roof.position.set(KX, 3.14, KZ);
+  // ── Roof (overhang on all sides) ─────────────────────────────────────────
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(BW + 1.0, 0.3, BD + 0.9), roofMat);
+  roof.position.set(KX, BH + 0.15, KZ);
   roof.castShadow = true;
   scene.add(roof);
 
-  // Door
-  const door = new THREE.Mesh(new THREE.BoxGeometry(1.0, 2.1, 0.08), doorMat);
-  door.position.set(KX, 1.05, FZ + 0.01);
+  // ── Door ─────────────────────────────────────────────────────────────────
+  const DW = 1.1, DH = 2.31;
+  const door = new THREE.Mesh(new THREE.BoxGeometry(DW, DH, 0.09), doorMat);
+  door.position.set(KX, DH / 2, FZ + 0.01);
   scene.add(door);
-
-  // Door frame
-  const dfTop = new THREE.Mesh(new THREE.BoxGeometry(1.12, 0.1, 0.09), frameMat);
-  dfTop.position.set(KX, 2.15, FZ + 0.015);
+  const dfTop = new THREE.Mesh(new THREE.BoxGeometry(DW + 0.14, 0.11, 0.10), frameMat);
+  dfTop.position.set(KX, DH + 0.055, FZ + 0.015);
   scene.add(dfTop);
-  const dfL = new THREE.Mesh(new THREE.BoxGeometry(0.09, 2.1, 0.09), frameMat);
-  dfL.position.set(KX - 0.555, 1.05, FZ + 0.015);
+  const dfL = new THREE.Mesh(new THREE.BoxGeometry(0.10, DH, 0.10), frameMat);
+  dfL.position.set(KX - DW / 2 - 0.05, DH / 2, FZ + 0.015);
   scene.add(dfL);
-  const dfR = dfL.clone();
-  dfR.position.x = KX + 0.555;
-  scene.add(dfR);
+  const dfR = dfL.clone(); dfR.position.x = KX + DW / 2 + 0.05; scene.add(dfR);
 
-  // Windows
-  const wFrame = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.85, 0.09), frameMat);
-  wFrame.position.set(KX - 1.7, 1.9, FZ + 0.01);
-  scene.add(wFrame);
-  const wGlass = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.65, 0.09), winMat);
-  wGlass.position.set(KX - 1.7, 1.9, FZ + 0.015);
-  scene.add(wGlass);
-  const wFrame2 = wFrame.clone(); wFrame2.position.x = KX + 1.7; scene.add(wFrame2);
-  const wGlass2 = wGlass.clone(); wGlass2.position.x = KX + 1.7; scene.add(wGlass2);
+  // ── Front windows (4, two each side of door) ─────────────────────────────
+  for (const wx of [KX - 1.8, KX - 3.3, KX + 1.8, KX + 3.3]) {
+    const wf = new THREE.Mesh(new THREE.BoxGeometry(1.16, 0.94, 0.10), frameMat);
+    wf.position.set(wx, BH * 0.64, FZ + 0.01);
+    scene.add(wf);
+    const wg = new THREE.Mesh(new THREE.BoxGeometry(0.94, 0.72, 0.10), winMat);
+    wg.position.set(wx, BH * 0.64, FZ + 0.016);
+    scene.add(wg);
+  }
 
-  // Sign above door
-  const sign = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.55, 0.09), signMat);
-  sign.position.set(KX, 2.65, FZ + 0.01);
-  scene.add(sign);
-  const stripe = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.12, 0.1),
-    new THREE.MeshLambertMaterial({ color: 0xffffff }));
-  stripe.position.set(KX, 2.65, FZ + 0.015);
-  scene.add(stripe);
+  // ── Side windows (2 per side, since building is now deep) ────────────────
+  const sideFrameGeo = new THREE.BoxGeometry(0.10, 1.05, 1.30);
+  const sideGlassGeo = new THREE.BoxGeometry(0.10, 0.84, 1.10);
+  for (const sz of [KZ - 1.8, KZ + 1.8]) {
+    for (const [sx, sign2] of [[KX - BW / 2, -1], [KX + BW / 2, 1]]) {
+      const sf = new THREE.Mesh(sideFrameGeo, frameMat);
+      sf.position.set(sx + sign2 * 0.01, BH * 0.64, sz);
+      scene.add(sf);
+      const sg = new THREE.Mesh(sideGlassGeo, winMat);
+      sg.position.set(sx + sign2 * 0.006, BH * 0.64, sz);
+      scene.add(sg);
+    }
+  }
 
-  // Step
-  const step = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.12, 0.35), frameMat);
-  step.position.set(KX, 0.06, FZ + 0.195);
+  // ── Neon KIOSK sign ───────────────────────────────────────────────────────
+  {
+    const SW = 320, SH = 96;
+    const cv  = document.createElement('canvas');
+    cv.width  = SW; cv.height = SH;
+    const ctx = cv.getContext('2d');
+
+    // Dark backing board
+    ctx.fillStyle = '#07001a';
+    ctx.fillRect(0, 0, SW, SH);
+
+    // Outer neon border (magenta tube)
+    ctx.shadowColor = '#ff22ff';
+    ctx.shadowBlur  = 16;
+    ctx.strokeStyle = '#ff22ff';
+    ctx.lineWidth   = 4;
+    ctx.strokeRect(8, 8, SW - 16, SH - 16);
+
+    // KIOSK lettering (cyan)
+    ctx.font          = 'bold 56px Arial, sans-serif';
+    ctx.textAlign     = 'center';
+    ctx.textBaseline  = 'middle';
+    ctx.fillStyle     = '#00ffee';
+    ctx.shadowColor   = '#00ffee';
+    ctx.shadowBlur    = 28;
+    ctx.fillText('KIOSK', SW / 2, SH / 2);
+    // Extra-wide glow pass
+    ctx.shadowBlur  = 52;
+    ctx.globalAlpha = 0.45;
+    ctx.fillText('KIOSK', SW / 2, SH / 2);
+    ctx.globalAlpha = 1;
+
+    const tex  = new THREE.CanvasTexture(cv);
+    const smat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.FrontSide });
+    const smesh = new THREE.Mesh(new THREE.PlaneGeometry(2.16, 0.648), smat);
+    smesh.position.set(KX, BH - 0.38, FZ + 0.07);
+    scene.add(smesh);
+
+    if (night) {
+      // Cyan fill light spilling out from the sign
+      const ptC = new THREE.PointLight(0x00eeff, 2.0, 8, 1.8);
+      ptC.position.set(KX, BH - 0.54, FZ + 0.4);
+      scene.add(ptC);
+      // Magenta accent from the border
+      const ptM = new THREE.PointLight(0xff00ff, 0.9, 5, 2.2);
+      ptM.position.set(KX, BH, FZ + 0.4);
+      scene.add(ptM);
+    }
+  }
+
+  // ── Step ─────────────────────────────────────────────────────────────────
+  const step = new THREE.Mesh(new THREE.BoxGeometry(1.54, 0.13, 0.39), frameMat);
+  step.position.set(KX, 0.065, FZ + 0.205);
   scene.add(step);
 
-  // --- Outdoor seating in front-left of kiosk ---
-  const TX = KX - 4.0, TZ = FZ + 1.0; // moved in front of kiosk
+  // ── Outdoor seating (front-left of kiosk) ────────────────────────────────
+  const TX = KX - 6.0,  TZ = FZ + 1.0;  // (2.9, -17.1)
 
-  const tableMat  = new THREE.MeshLambertMaterial({ color: 0xd0c5b0 });
-  const chairMat  = new THREE.MeshLambertMaterial({ color: 0x88aa66 });
+  const tableMat   = new THREE.MeshLambertMaterial({ color: 0xd0c5b0 });
+  const chairMat   = new THREE.MeshLambertMaterial({ color: 0x88aa66 });
   const parasolMat = new THREE.MeshLambertMaterial({ color: 0xf4a261 });
 
   const tableTop = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.07, 14), tableMat);
   tableTop.position.set(TX, 0.82, TZ);
   tableTop.castShadow = true;
   scene.add(tableTop);
-
   const tablePole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.82, 8), poleMat);
   tablePole.position.set(TX, 0.41, TZ);
   scene.add(tablePole);
@@ -517,19 +620,14 @@ function createKiosk(scene) {
   canopy.castShadow = true;
   scene.add(canopy);
 
-  // --- Gravel path from kiosk door to sidewalk ---
-  // Door at (KX=7, FZ=-18.25) → sidewalk edge at (~2, -13.5)
-  const pathMat = new THREE.MeshLambertMaterial({ color: 0xb8a88a }); // sandy gravel
-  const pStartX = 7,  pStartZ = -18;
-  const pEndX   = 2,  pEndZ   = -13.5;
-  const pMidX   = (pStartX + pEndX) / 2;  // 4.5
-  const pMidZ   = (pStartZ + pEndZ) / 2;  // -15.75
-  const pdx = pEndX - pStartX, pdz = pEndZ - pStartZ;
-  const pLen = Math.sqrt(pdx * pdx + pdz * pdz);
-  const pAngle = Math.atan2(pdx, pdz);
-  const pathMesh = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.025, pLen), pathMat);
-  pathMesh.position.set(pMidX, 0.013, pMidZ);
-  pathMesh.rotation.y = pAngle;
+  // ── Gravel path: kiosk door → sidewalk ───────────────────────────────────
+  const pathMat  = new THREE.MeshLambertMaterial({ color: 0xb8a88a });
+  const pEndX = 2, pEndZ = -13.5;
+  const pdx   = pEndX - KX, pdz = pEndZ - FZ;
+  const pLen  = Math.sqrt(pdx * pdx + pdz * pdz);
+  const pathMesh = new THREE.Mesh(new THREE.BoxGeometry(1.43, 0.025, pLen), pathMat);
+  pathMesh.position.set((KX + pEndX) / 2, 0.013, (FZ + pEndZ) / 2);
+  pathMesh.rotation.y = Math.atan2(pdx, pdz);
   pathMesh.receiveShadow = true;
   scene.add(pathMesh);
 }
@@ -662,7 +760,7 @@ function addTerrainDetails(scene, night = false) {
 
   // Lampposts along the path / sidewalk area
   lamppost(-5, -12);
-  lamppost( 4, -12);
+  lamppost( 9, -12);
   lamppost( 7, -16.5);
 
   // Bench near bus shelter
@@ -681,9 +779,7 @@ function addTerrainDetails(scene, night = false) {
   bush(-8.5,-16.5);
   bush(-5.5,-17.5);
   bush( 11, -13.5);
-  bush( 12, -16.5);
   bush(-4,  -15.5, 0.8);
-  bush( 9,  -17,   0.9);
 
   // Small deciduous trees (sphere canopy on trunk) — a few near kiosk path
   const smTrunkMat   = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
@@ -694,23 +790,21 @@ function addTerrainDetails(scene, night = false) {
     trunk.castShadow = true;
     scene.add(trunk);
     const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.75, 8, 6), smCanopyMat);
-    canopy.position.set(x, 2.05, z);
+    canopy.position.set(x, 2.075, z);
     canopy.castShadow = true;
     scene.add(canopy);
   }
   smallTree(-9, -14.5);
   smallTree(-10, -17);
   smallTree( 13, -14);
-  smallTree( 13.5, -17.5);
   smallTree(-7,  -19);
 
 
   // Grass tufts throughout open areas (avoid road z:-2 to -10, sidewalk z:-10 to -13)
   const tuftPositions = [
     [-12, -14], [-13, -16], [-11, -18], [-9, -15.5],
-    [ 14, -14], [ 15, -17], [ 13, -19],
+    [ 14, -14], [ 15, -17],
     [-6,  -16], [-5,  -18], [-3,  -17],
-    [ 9,  -15], [10,  -18],
     [-14,  4], [-10,   5], [ 10,   2],
     [-5,   3], [  5,   4], [ 12,   1],
   ];
