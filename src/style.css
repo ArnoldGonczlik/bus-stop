@@ -40,7 +40,7 @@ canvas {
 
 #mode-title {
   color: #ffffff;
-  font-size: 32px;
+  font-size: 44px;
   font-weight: bold;
   text-align: center;
   letter-spacing: 0.03em;
@@ -49,20 +49,20 @@ canvas {
 
 #mode-cards {
   display: flex;
-  gap: 28px;
+  gap: 36px;
 }
 
 .mode-card {
   background: rgba(255,255,255,0.07);
   border: 2px solid rgba(255,255,255,0.18);
-  border-radius: 16px;
-  padding: 32px 38px;
-  width: 220px;
+  border-radius: 20px;
+  padding: 42px 52px;
+  width: 280px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
   transition: background 0.18s, border-color 0.18s, transform 0.15s;
   font-family: Arial, sans-serif;
 }
@@ -84,22 +84,62 @@ canvas {
 }
 
 .mode-card-icon {
-  font-size: 42px;
+  font-size: 56px;
   line-height: 1;
 }
 
 .mode-card-label {
   color: #ffffff;
-  font-size: 22px;
+  font-size: 28px;
   font-weight: bold;
   letter-spacing: 0.02em;
 }
 
 .mode-card-desc {
   color: rgba(255,255,255,0.55);
-  font-size: 13px;
+  font-size: 16px;
   text-align: center;
   line-height: 1.4;
+}
+
+/* ---- Keybinds on mode screen ---- */
+#keybinds {
+  position: absolute;
+  top: calc(50% + 180px + 25vh - 90px);
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 16px;
+  padding: 28px 48px;
+  min-width: 520px;
+}
+
+.kb-row {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+.kb-key {
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.28);
+  border-radius: 8px;
+  padding: 5px 18px;
+  font-size: 17px;
+  font-family: 'Courier New', monospace;
+  color: #ffe082;
+  white-space: nowrap;
+  min-width: 155px;
+  text-align: center;
+}
+
+.kb-desc {
+  color: rgba(255,255,255,0.62);
+  font-size: 18px;
 }
 
 #overlay {

@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
-import { createScene, updateScene } from './scene.js';
+import { createScene, updateScene, treeColliders } from './scene.js';
 import { createBus } from './bus.js';
 import { createPassengers, resetPassengers, updatePassengers, forcePassengerChat, setLanguage, setNightMode } from './passengers.js';
-import { initInventory, setInventoryLang, setInventoryVisible, getItemCount, resetInventory } from './inventory.js';
-import { spawnWorldItems, updateWorldItems, resetWorldItems, setHardMode } from './worldItems.js';
+import { initInventory, setInventoryLang, setInventoryVisible, getItemCount, resetInventory, deductInventory } from './inventory.js';
+import { spawnWorldItems, updateWorldItems, resetWorldItems, setHardMode, spawnTripCoins } from './worldItems.js';
 import { createBusDriver, triggerRejection, updateBusDriver, resetBusDriver, shouldDriveBus } from './busDriver.js';
 
 // ---- UI translations ----
@@ -21,6 +21,13 @@ const UI = {
     modeEasyDesc:  'Utforsk fritt',
     modeHard:      'Vanskelig',
     modeHardDesc:  'Samle 10 mynter for å gå på',
+    keybinds: [
+      ['W A S D',       'Gå'],
+      ['Shift',         'Løp'],
+      ['Enter',         'Bytt kamera (1./3. person)'],
+      ['Klikk',         'Snakk med passasjer'],
+      ['R',             'Start på nytt'],
+    ],
   },
   en: {
     start:         'Click to start',
@@ -34,6 +41,13 @@ const UI = {
     modeEasyDesc:  'Explore freely',
     modeHard:      'Hard',
     modeHardDesc:  'Collect 10 coins to board',
+    keybinds: [
+      ['W A S D',       'Move'],
+      ['Shift',         'Sprint'],
+      ['Enter',         'Toggle camera (1st/3rd person)'],
+      ['Click',         'Talk to passenger'],
+      ['R',             'Restart'],
+    ],
   },
 };
 let uiLang = 'no';
@@ -56,11 +70,19 @@ function applyLang(lang) {
   document.getElementById('mode-easy-desc').textContent  = t.modeEasyDesc;
   document.getElementById('mode-hard-label').textContent = t.modeHard;
   document.getElementById('mode-hard-desc').textContent  = t.modeHardDesc;
+  // Keybinds
+  const kb = document.getElementById('keybinds');
+  kb.innerHTML = t.keybinds.map(([key, desc]) =>
+    `<div class="kb-row"><span class="kb-key">${key}</span><span class="kb-desc">${desc}</span></div>`
+  ).join('');
 }
 
 document.querySelectorAll('.lang-btn').forEach(btn => {
   btn.addEventListener('click', () => applyLang(btn.dataset.lang));
 });
+
+// Populate all translated text (including keybinds) on initial load
+applyLang(uiLang);
 
 // ---- Mode screen (shown once at page load) ----
 const modeScreen = document.getElementById('mode-screen');
@@ -113,6 +135,13 @@ let hardMode    = false;
 let kickAnim   = null;    // { startZ, targetZ, timer, duration }
 let shakeTimer = 0;
 const SHAKE_DURATION = 0.55;
+
+// Trip-over state
+let tripAnim    = null;  // { timer, duration } — active during trip cutscene
+let tripCooldown = 0;   // seconds until next trip is allowed
+let sprintAccum  = 0;   // accumulated sprint-time for trip roll
+const FOREST_Z_FAR  = -10.5;
+function isInForest(z) { return z < FOREST_Z_FAR || z > 4; }
 
 let busArrived  = false;
 let busAnimating = false;
@@ -452,6 +481,10 @@ function blocked(nx, nz) {
   for (const b of STATIC_BOXES) {
     if (nx > b.minX && nx < b.maxX && nz > b.minZ && nz < b.maxZ) return true;
   }
+  for (const t of treeColliders) {
+    const dx = nx - t.x, dz = nz - t.z;
+    if (dx * dx + dz * dz < (PR + t.r) * (PR + t.r)) return true;
+  }
   if (passengers.some(p => {
     if (p.boarded) return false;
     const dx = nx - p.x, dz = nz - p.z;
@@ -503,8 +536,11 @@ function resetGame() {
   resetWorldItems(scene);
   resetBusDriver();
   resetInventory();
-  kickAnim   = null;
-  shakeTimer = 0;
+  kickAnim     = null;
+  tripAnim     = null;
+  tripCooldown = 0;
+  sprintAccum  = 0;
+  shakeTimer   = 0;
   player.group.rotation.x = 0;
   player.group.position.y = 0;
   overlay.classList.remove('hidden');
@@ -520,6 +556,35 @@ function triggerDeath() {
     deathScreen.classList.remove('visible');
     setTimeout(() => { gameDead = false; resetGame(); }, 650);
   }, 2000);
+}
+
+// ── Trip-over cutscene ───────────────────────────────────────────────────────
+const TRIP_DURATION = 1.6; // seconds the fall animation plays
+function triggerTrip() {
+  if (tripAnim) return;
+  const lost = deductInventory('coin', getItemCount('coin'));
+  // Even with 0 coins still play the fall animation
+  if (lost > 0) spawnTripCoins(scene, playerX, playerZ, lost);
+  gameStarted  = false;
+  sprintAccum  = 0;
+  tripCooldown = 4;  // 4 s cooldown after landing before another trip can roll
+
+  // Show toast
+  const msg = uiLang === 'no'
+    ? `Du snublet! Mistet ${lost} mynt${lost !== 1 ? 'er' : ''}!`
+    : `You tripped! Lost ${lost} coin${lost !== 1 ? 's' : ''}!`;
+  const toast = document.createElement('div');
+  toast.textContent = msg;
+  toast.style.cssText = `
+    position:fixed; top:30%; left:50%; transform:translate(-50%,-50%);
+    background:rgba(0,0,0,0.78); color:#ffd700; font-size:28px; font-weight:bold;
+    padding:16px 32px; border-radius:12px; pointer-events:none; z-index:2000;
+    border:2px solid #ffd700; text-align:center; white-space:nowrap;
+  `;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2200);
+
+  tripAnim = { timer: 0, duration: TRIP_DURATION, startRotX: 0 };
 }
 
 const doorTriggerBox = new THREE.Box3();
@@ -558,12 +623,7 @@ controls.addEventListener('unlock', () => {
 });
 
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'KeyR' && gameWon) {
-    winScreen.classList.remove('visible');
-    gameWon = false;
-    resetGame();
-    return;
-  }
+  if (e.code === 'KeyR') { location.reload(); return; }
   if (e.code === 'Enter' && gameStarted && !gameWon) {
     thirdPerson = !thirdPerson;
     setPlayerViewMode(thirdPerson);
@@ -613,6 +673,7 @@ function animate() {
   const delta    = Math.min(rawDelta, 0.1);
 
   tickKickCutscene(delta);
+  tickTripCutscene(delta);
 
   if (gameStarted && !gameWon) {
 
@@ -638,6 +699,21 @@ function animate() {
       else if (!blocked(playerX, fz))       playerZ = fz;
     }
 
+    // --- Sprint-in-forest trip check ---
+    if (tripCooldown > 0) tripCooldown -= delta;
+    if (hardMode && moveState.sprint && isMoving && isInForest(playerZ)) {
+      sprintAccum += delta;
+      if (sprintAccum >= 1.5 && tripCooldown <= 0) {
+        sprintAccum = 0;
+        // Base chance 3%; scales up with coins: +0.8% per coin above 1 (10 coins → ~10.2%)
+        const coins  = getItemCount('coin');
+        const chance = 0.03 + Math.max(0, coins - 1) * 0.008;
+        if (Math.random() < chance) triggerTrip();
+      }
+    } else {
+      sprintAccum = Math.max(0, sprintAccum - delta * 0.5);
+    }
+
     // --- Camera: first-person with head bob, or third-person orbit ---
     if (!thirdPerson) {
       if (isMoving) {
@@ -650,12 +726,12 @@ function animate() {
       camera.position.x = playerX;
       camera.position.z = playerZ;
     } else {
-      // Smooth chase cam: 5 units behind player, 2.2 above ground
+      // Smooth chase cam: 3.5 units behind player, 2.2 above ground
       camera.getWorldDirection(_fwd);
       _fwd.y = 0;
       if (_fwd.length() > 0.001) _fwd.normalize();
-      const tpX = playerX - _fwd.x * 5;
-      const tpZ = playerZ - _fwd.z * 5;
+      const tpX = playerX - _fwd.x * 3.5;
+      const tpZ = playerZ - _fwd.z * 3.5;
       const tpY = PLAYER_HEIGHT + 2.2;
       const s   = Math.min(1, delta * 8);
       camera.position.x += (tpX - camera.position.x) * s;
@@ -886,6 +962,59 @@ function tickKickCutscene(delta) {
 
   // ── busDriver: leg animation + camera rotation toward door/bus ───────────
   updateBusDriver(delta, camera, busCurrentX);
+}
+
+// ─── Trip cutscene (runs outside normal gameStarted gate) ────────────────────
+function tickTripCutscene(delta) {
+  if (!tripAnim) return;
+  tripAnim.timer += delta;
+  const t = Math.min(1, tripAnim.timer / tripAnim.duration);
+
+  // Phase 1 (0–0.35): pitch forward fast
+  // Phase 2 (0.35–0.75): lie flat
+  // Phase 3 (0.75–1.0): get back up
+  let rotX;
+  if (t < 0.35) {
+    rotX = (t / 0.35) * (Math.PI / 2);
+  } else if (t < 0.75) {
+    rotX = Math.PI / 2;
+  } else {
+    rotX = (1 - (t - 0.75) / 0.25) * (Math.PI / 2);
+  }
+
+  // Player mesh mirrors the fall — clamp y so it never clips through the ground
+  player.group.rotation.x = rotX;
+  player.group.position.set(playerX, Math.max(0, -Math.sin(rotX) * 0.3), playerZ);
+
+  if (thirdPerson) {
+    // Chase cam continues normally — player sees the character face-plant from behind
+    camera.getWorldDirection(_fwd);
+    _fwd.y = 0;
+    if (_fwd.length() > 0.001) _fwd.normalize();
+    const tpX = playerX - _fwd.x * 3.5;
+    const tpZ = playerZ - _fwd.z * 3.5;
+    const tpY = PLAYER_HEIGHT + 2.2;
+    const s   = Math.min(1, delta * 8);
+    camera.position.x += (tpX - camera.position.x) * s;
+    camera.position.y += (tpY - camera.position.y) * s;
+    camera.position.z += (tpZ - camera.position.z) * s;
+  } else {
+    // First-person: lower camera to ground (face-plant effect)
+    // Don't touch euler.x — PointerLockControls resets it every frame.
+    camera.position.set(
+      playerX,
+      Math.max(0.15, PLAYER_HEIGHT - Math.sin(rotX) * 1.55),
+      playerZ,
+    );
+  }
+
+  if (t >= 1) {
+    tripAnim    = null;
+    sprintAccum = 0;
+    player.group.rotation.x = 0;
+    player.group.position.y = 0;
+    gameStarted = true;
+  }
 }
 
 animate();

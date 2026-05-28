@@ -185,6 +185,27 @@ export function updateWorldItems(scene, playerX, playerZ, delta, gameStarted) {
   }
 }
 
+// ── Public: spawn a pile of loose coins at a position (trip spill) ──────────
+export function spawnTripCoins(scene, cx, cz, count) {
+  for (let i = 0; i < count; i++) {
+    // Scatter in a 1.2–4.5 unit radius ring so coins spread visibly around the player
+    const angle   = (i / count) * Math.PI * 2 + Math.random() * 1.2;
+    // Radius scales with coin count: 1 coin → 1.2–3.0, 10 coins → 2.2–7.5
+    const rMin  = 1.2 + count * 0.1;
+    const rMax  = 3.0 + count * 0.45;
+    const r     = rMin + Math.random() * (rMax - rMin);
+    const x     = cx + Math.cos(angle) * r;
+    const z     = cz + Math.sin(angle) * r;
+    const { mesh, baseY } = buildCoinMesh(scene, x, z);
+    worldItems.push({
+      mesh, itemId: 'coin', baseY, collected: false,
+      x, z, rotOffset: Math.random() * Math.PI * 2,
+      respawnTimer: 0, scene,
+      isTripCoin: true,   // flag so we can clean these up eventually
+    });
+  }
+}
+
 // ── Public: full reset (re-scatter all coins) ────────────────────────────────
 export function resetWorldItems(scene) {
   for (const item of worldItems) scene.remove(item.mesh);

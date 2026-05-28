@@ -87,6 +87,9 @@ export function updateScene(delta, scene) {
   }
 }
 
+// Tree collision radii exported for main.js blocked() check
+export const treeColliders = [];  // { x, z, r }
+
 export function createScene(scene) {
   // 15% chance for night
   const night = Math.random() < 0.15; // ~15% chance — night is a rare treat
@@ -334,8 +337,8 @@ function placeForest(scene) {
 
   function placeTree(x, z) {
     const s = 0.72 + Math.random() * 0.56;
-    if (Math.random() < 0.5) conifer(x, z, s);
-    else deciduous(x, z, s);
+    if (Math.random() < 0.5) { conifer(x, z, s); treeColliders.push({ x, z, r: 0.42 * s }); }
+    else { deciduous(x, z, s); treeColliders.push({ x, z, r: 0.20 * s }); }
   }
 
   // Returns true if position is in a clear zone (road, sidewalk, kiosk, seating area)
@@ -793,6 +796,7 @@ function addTerrainDetails(scene, night = false) {
     canopy.position.set(x, 2.075, z);
     canopy.castShadow = true;
     scene.add(canopy);
+    treeColliders.push({ x, z, r: 0.18 }); // trunk only, ignore canopy sphere
   }
   smallTree(-9, -14.5);
   smallTree(-10, -17);

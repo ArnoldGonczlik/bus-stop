@@ -76,6 +76,24 @@ export function getItemCount(itemId) {
   return slots.reduce((sum, s) => (s && s.itemId === itemId ? sum + s.count : sum), 0);
 }
 
+/**
+ * Remove up to `amount` of itemId from inventory. Returns how many were actually removed.
+ * Sets the slot count to 0 and nullifies if depleted.
+ */
+export function deductInventory(itemId, amount) {
+  let remaining = amount;
+  for (let i = 0; i < SLOT_COUNT; i++) {
+    if (!slots[i] || slots[i].itemId !== itemId) continue;
+    const take = Math.min(slots[i].count, remaining);
+    slots[i].count -= take;
+    remaining -= take;
+    if (slots[i].count <= 0) slots[i] = null;
+    if (remaining <= 0) break;
+  }
+  renderHUD();
+  return amount - remaining;
+}
+
 /** Clear all slots and re-render (call on game reset). */
 export function resetInventory() {
   for (let i = 0; i < SLOT_COUNT; i++) slots[i] = null;
