@@ -7,7 +7,25 @@
   <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
-  <div id="overlay">
+  <!-- Mode selection — shown only once on initial page load -->
+  <div id="mode-screen">
+    <div id="mode-title">Velg vanskelighetsgrad</div>
+    <div id="mode-cards">
+      <button class="mode-card" id="mode-easy">
+        <span class="mode-card-icon">🌤️</span>
+        <span class="mode-card-label" id="mode-easy-label">Lett</span>
+        <span class="mode-card-desc" id="mode-easy-desc">Utforsk fritt</span>
+      </button>
+      <button class="mode-card mode-card--hard" id="mode-hard">
+        <span class="mode-card-icon">💀</span>
+        <span class="mode-card-label" id="mode-hard-label">Vanskelig</span>
+        <span class="mode-card-desc" id="mode-hard-desc">Samle 10 mynter for å gå på</span>
+      </button>
+    </div>
+    <div id="keybinds"></div>
+  </div>
+
+  <div id="overlay" class="hidden">
     <div id="start-message">Klikk for å starte</div>
   </div>
   <div id="win-screen">
